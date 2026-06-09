@@ -10,6 +10,8 @@ import { RULES, ensureActiveRuleColors, resetRuleColors } from '../rules/rules';
 import { type Difficulty, difficultyConfig } from './difficulty';
 import { RulePanel } from '../hud/RulePanel';
 import { RoundBanner } from '../hud/RoundBanner';
+import { ScoreHud } from '../hud/ScoreHud';
+import { GameOverScreen } from '../hud/GameOverScreen';
 import type { Rule } from '../rules/RuleEngine';
 
 /**
@@ -26,10 +28,13 @@ const SETS_PER_ROUND = 10;
 /** 라운드 전환 시 멈춤(텀) 길이(초). 중앙에 새 룰 표시. */
 const ROUND_TRANSITION_SEC = 1.8;
 /** 테스트용: 충돌 시 게임오버 대신 구를 빨갛게만 표시(계속 진행). 정상=false. */
-const DEBUG_COLLISION_MARK = true;
+const DEBUG_COLLISION_MARK = false;
 
 export class Game {
   private status: GameStatus = 'playing';
+  private readonly scene: THREE.Scene;
+  private readonly laneGroup: THREE.Group;
+  private readonly onMenu: () => void;
   private readonly input: InputController;
   private readonly player: Player;
   private readonly spawner: Spawner;
@@ -40,18 +45,23 @@ export class Game {
   readonly showRulePanel: boolean;
   private readonly panel: RulePanel;
   private readonly banner = new RoundBanner();
+  private readonly scoreHud = new ScoreHud();
+  private readonly gameOverScreen: GameOverScreen;
   private round = 1;
   private setsPassed = 0;
   private transitionTimer = 0; // >0 이면 라운드 전환 텀(게임 정지)
 
-  constructor(scene: THREE.Scene, difficulty: Difficulty = 'normal') {
+  constructor(scene: THREE.Scene, difficulty: Difficulty = 'normal', onMenu: () => void = () => {}) {
+    this.scene = scene;
+    this.onMenu = onMenu;
     const cfg = difficultyConfig(difficulty, RULES.length);
     this.ruleFloor = cfg.ruleFloor;
     this.showRulePanel = cfg.showRulePanel;
 
     this.input = new InputController();
 
-    scene.add(createLaneGroup());
+    this.laneGroup = createLaneGroup();
+    scene.add(this.laneGroup);
 
     this.player = new Player();
     scene.add(this.player.object);
@@ -59,8 +69,13 @@ export class Game {
     this.engine = new RuleEngine(RULES);
     this.spawner = new Spawner(scene, this.engine);
     this.panel = new RulePanel(this.showRulePanel);
+    this.gameOverScreen = new GameOverScreen(
+      () => this.reset(),
+      () => this.onMenu(),
+    );
 
     this.applyRound(); // 시작 라운드(난이도 ruleFloor)의 룰 활성 + 색 배정 + 패널
+    this.scoreHud.update(this.score.value, this.round);
 
     window.addEventListener('keydown', this.onKeyDown);
   }
@@ -104,6 +119,7 @@ export class Game {
       const added = this.engine.activeRules.slice(prevActive);
       this.beginRoundTransition(added);
     }
+    this.scoreHud.update(this.score.value, this.round);
   }
 
   /** 라운드 전환 — 텀 시작 + 중앙 배너(새 룰, 블라인드면 가림). */
@@ -127,8 +143,7 @@ export class Game {
 
   private gameOver(): void {
     this.status = 'gameover';
-    // 화면 오버레이는 T16. 여기선 최종 점수 로그.
-    console.info(`[RuleAdd] GAME OVER — 최종 점수 ${this.score.value} — press R to restart`);
+    this.gameOverScreen.show(this.score.value, this.round);
   }
 
   reset(): void {
@@ -138,10 +153,24 @@ export class Game {
     this.setsPassed = 0;
     this.transitionTimer = 0;
     this.banner.hide();
+    this.gameOverScreen.hide();
     this.applyRound();
     this.spawner.reset();
     this.player.reset();
+    this.scoreHud.update(this.score.value, this.round);
     this.status = 'playing';
+  }
+
+  /** 메뉴 복귀 시 정리 — HUD/리스너/씬 오브젝트 제거. */
+  dispose(): void {
+    window.removeEventListener('keydown', this.onKeyDown);
+    this.input.dispose();
+    this.spawner.reset(); // 벽 제거
+    this.scene.remove(this.laneGroup, this.player.object);
+    this.panel.dispose();
+    this.banner.dispose();
+    this.scoreHud.dispose();
+    this.gameOverScreen.dispose();
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {

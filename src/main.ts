@@ -69,11 +69,19 @@ dir.shadow.camera.bottom = -12;
 dir.shadow.bias = -0.0005;
 scene.add(dir);
 
-// --- Game (난이도 선택 후 시작) ---
+// --- Game (난이도 선택 후 시작, 메뉴로 복귀 가능) ---
 let game: Game | null = null;
-new StartScreen(mount, (difficulty) => {
-  game = new Game(scene, difficulty);
-});
+function showStartScreen(): void {
+  new StartScreen(mount as HTMLDivElement, (difficulty) => {
+    game = new Game(scene, difficulty, handleMenu);
+  });
+}
+function handleMenu(): void {
+  game?.dispose();
+  game = null;
+  showStartScreen();
+}
+showStartScreen();
 
 // --- Resize ---
 function onResize(): void {
@@ -97,4 +105,4 @@ function render(): void {
 const loop = new GameLoop(update, render);
 loop.start();
 
-console.info(`[RuleAdd] T15 ready — rule panel, three.js r${THREE.REVISION}`);
+console.info(`[RuleAdd] T16 ready — score HUD + game over screen, three.js r${THREE.REVISION}`);

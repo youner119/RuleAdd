@@ -80,4 +80,8 @@ export class RoundBanner {
   hide(): void {
     this.root.style.display = 'none';
   }
+
+  dispose(): void {
+    this.root.remove();
+  }
 }
