@@ -1,28 +1,27 @@
 import * as THREE from 'three';
 import { GameLoop } from './core/GameLoop';
+import { createLaneGroup, PLAYER_Z } from './core/lane';
+import { Player } from './core/Player';
 
 /**
- * T2 — 기본 three.js 무대: 흰 배경, 3인칭 뒤+위 perspective 카메라,
- * 조명, delta-time 렌더 루프. (AC1 토대)
+ * 무대 + 배우: 흰 배경, 3인칭 뒤+위 perspective 카메라, 조명(+그림자),
+ * 4×1 레인, 흰 구(Player). (AC1)
  *
  * 좌표 규약 (이후 전 시스템의 기준):
  *   X = 레인 좌우 (4×1: 4칸이 X축에 나열)
  *   Z = 깊이. 벽은 -Z 먼 곳에서 +Z(플레이어/카메라 쪽)로 접근
  *   Y = 높이. 4×4 확장 시 행이 Y축에 쌓임
  *
- * 4×1 레인 + 흰 구 배치는 T3. 여기는 빈 무대 + (DEBUG) 참조 헬퍼만.
+ * 이동(a/d)은 T4, 벽은 T5.
  */
-
-/** 임시 시각화 헬퍼(그리드/축). T3에서 false 로 끈다. */
-const DEBUG_HELPERS = true;
 
 /** 카메라 배치 — 튜닝하기 쉽게 한곳에 모음. */
 const CAMERA = {
   fov: 60,
   near: 0.1,
   far: 200,
-  position: new THREE.Vector3(0, 5, 9), // 플레이어 뒤(+Z) + 위(+Y)
-  lookAt: new THREE.Vector3(0, 0, -6), // 깊이(-Z) 방향 응시
+  position: new THREE.Vector3(0, 4.5, 9), // 플레이어 뒤(+Z) + 위(+Y)
+  lookAt: new THREE.Vector3(0, 0.6, PLAYER_Z - 8), // 플레이어 너머 깊이 응시
 } as const;
 
 const mount = document.querySelector<HTMLDivElement>('#app');
@@ -37,6 +36,8 @@ mount.replaceChildren();
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0xffffff, 1); // 흰 배경 (미니멀리즘)
+renderer.shadowMap.enabled = true; // contact shadow → 흰색-on-흰색 깊이감
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 mount.appendChild(renderer.domElement);
 
 // --- Scene ---
@@ -54,19 +55,26 @@ camera.position.copy(CAMERA.position);
 camera.lookAt(CAMERA.lookAt);
 
 // --- Lights (흰 오브젝트가 입체로 보이도록 부드러운 라이팅) ---
-const hemi = new THREE.HemisphereLight(0xffffff, 0xdddddd, 1.0);
+const hemi = new THREE.HemisphereLight(0xffffff, 0xeeeeee, 1.3);
 scene.add(hemi);
-const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+const dir = new THREE.DirectionalLight(0xffffff, 1.5);
 dir.position.set(4, 8, 6);
+dir.castShadow = true;
+dir.shadow.mapSize.set(2048, 2048);
+dir.shadow.camera.near = 0.5;
+dir.shadow.camera.far = 40;
+dir.shadow.camera.left = -12;
+dir.shadow.camera.right = 12;
+dir.shadow.camera.top = 12;
+dir.shadow.camera.bottom = -12;
+dir.shadow.bias = -0.0005;
 scene.add(dir);
 
-// --- Debug helpers (임시, T3에서 제거) ---
-if (DEBUG_HELPERS) {
-  // 레인 평면(XZ) 가늠용 그리드 + 축. 흰 배경이라 옅은 회색.
-  const grid = new THREE.GridHelper(20, 20, 0xbbbbbb, 0xe2e2e2);
-  scene.add(grid);
-  scene.add(new THREE.AxesHelper(2));
-}
+// --- Stage geometry: 4×1 레인 + 흰 구 ---
+scene.add(createLaneGroup());
+
+const player = new Player();
+scene.add(player.object);
 
 // --- Resize ---
 function onResize(): void {
@@ -81,7 +89,7 @@ onResize();
 
 // --- Game loop ---
 function update(_dt: number): void {
-  // T3+ 에서 시스템 update 가 여기 연결된다.
+  // T4(Player 이동) / T5(Spawner) 등 시스템 update 가 여기 연결된다.
 }
 function render(): void {
   renderer.render(scene, camera);
@@ -90,4 +98,4 @@ function render(): void {
 const loop = new GameLoop(update, render);
 loop.start();
 
-console.info(`[RuleAdd] T2 stage ready — three.js r${THREE.REVISION}`);
+console.info(`[RuleAdd] T3 stage ready — lane + player, three.js r${THREE.REVISION}`);
