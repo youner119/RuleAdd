@@ -12,7 +12,7 @@ export class ControlsHud {
     this.root.style.cssText = [
       'position:fixed',
       'left:16px',
-      'top:108px', // 점수 HUD(좌상단) 아래
+      'top:124px', // 점수/라운드/목숨 HUD(좌상단) 아래
       'display:flex',
       'flex-direction:column',
       'align-items:flex-start',

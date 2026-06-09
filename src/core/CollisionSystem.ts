@@ -17,14 +17,22 @@ import type { RuleEngine } from '../rules/RuleEngine';
 const Z_REACH = WALL_THICKNESS / 2 + PLAYER_RADIUS; // 충돌 가능 Z 거리
 const X_REACH = CELL_SIZE / 2 + PLAYER_RADIUS; // 블록과 겹치는 X 거리
 
-export function checkCollision(player: Player, walls: readonly Wall[], engine: RuleEngine): boolean {
+/**
+ * @returns 구가 겹친(충돌) 벽, 없으면 null. 목숨 차감을 세트당 1회로
+ *   제한하려면 호출측이 반환된 벽의 lifeTaken 플래그로 중복을 거른다.
+ */
+export function checkCollision(
+  player: Player,
+  walls: readonly Wall[],
+  engine: RuleEngine,
+): Wall | null {
   const px = player.x;
   for (const wall of walls) {
     if (Math.abs(wall.z - PLAYER_Z) >= Z_REACH) continue; // Z 미접촉
     for (const block of wall.blocks) {
       if (!engine.resolveBehavior(block).collidable) continue; // 룰5: 통과 블록
-      if (Math.abs(px - cellToX(block.cell)) < X_REACH) return true; // 블록과 겹침
+      if (Math.abs(px - cellToX(block.cell)) < X_REACH) return wall; // 블록과 겹침
     }
   }
-  return false;
+  return null;
 }

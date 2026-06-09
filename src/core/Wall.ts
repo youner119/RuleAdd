@@ -94,6 +94,8 @@ export class Wall {
   readonly blocks: Block[];
   /** 룰2 쉬프트 1회 적용 완료 여부. */
   shifted = false;
+  /** 이 세트가 이미 목숨을 1 깎았는지 — 세트당 1회만 차감. */
+  lifeTaken = false;
 
   constructor(blocked: readonly boolean[]) {
     this.object = new THREE.Group();

@@ -28,8 +28,6 @@ export type GameStatus = 'playing' | 'gameover';
 const SETS_PER_ROUND = 10;
 /** 라운드 전환 시 멈춤(텀) 길이(초). 중앙에 새 룰 표시. */
 const ROUND_TRANSITION_SEC = 1.8;
-/** 테스트용: 충돌 시 게임오버 대신 구를 빨갛게만 표시(계속 진행). 정상=false. */
-const DEBUG_COLLISION_MARK = false;
 /** 스킵(Space) 시 벽 진행 속도 배율. 충돌 판정은 유지 — 위험 감수 빨리감기. */
 const FAST_FORWARD_MULT = 4;
 
@@ -44,6 +42,8 @@ export class Game {
   private readonly engine: RuleEngine;
   private readonly score = new ScoreSystem();
   private readonly ruleFloor: number;
+  private readonly maxLives: number;
+  private lives: number;
   /** 우측 룰 패널 표시 여부(블라인드=false). */
   readonly showRulePanel: boolean;
   private readonly panel: RulePanel;
@@ -61,6 +61,8 @@ export class Game {
     const cfg = difficultyConfig(difficulty, RULES.length);
     this.ruleFloor = cfg.ruleFloor;
     this.showRulePanel = cfg.showRulePanel;
+    this.maxLives = cfg.lives;
+    this.lives = cfg.lives;
 
     this.input = new InputController();
 
@@ -71,7 +73,7 @@ export class Game {
     scene.add(this.player.object);
 
     this.engine = new RuleEngine(RULES);
-    this.spawner = new Spawner(scene, this.engine);
+    this.spawner = new Spawner(scene, this.engine, cfg.setIntervalSec);
     this.panel = new RulePanel(this.showRulePanel);
     this.gameOverScreen = new GameOverScreen(
       () => this.reset(),
@@ -80,6 +82,7 @@ export class Game {
 
     this.applyRound(); // 시작 라운드(난이도 ruleFloor)의 룰 활성 + 색 배정 + 패널
     this.scoreHud.update(this.score.value, this.round);
+    this.scoreHud.setLives(this.lives, this.maxLives);
 
     window.addEventListener('keydown', this.onKeyDown);
   }
@@ -104,12 +107,19 @@ export class Game {
     if (passed > 0) this.addPassedSets(passed);
     if (this.transitionTimer > 0) return; // 막 텀 시작 → 이번 프레임 충돌 스킵
 
-    const hit = checkCollision(this.player, this.spawner.activeWalls, this.engine);
-    if (DEBUG_COLLISION_MARK) {
-      this.player.setHit(hit); // 게임오버 대신 빨강 표시(계속 진행)
-    } else if (hit) {
-      this.gameOver();
+    const hitWall = checkCollision(this.player, this.spawner.activeWalls, this.engine);
+    this.player.setHit(hitWall !== null); // 겹치는 동안 빨강 피드백
+    if (hitWall && !hitWall.lifeTaken) {
+      hitWall.lifeTaken = true; // 이 세트는 1회만 차감
+      this.loseLife();
     }
+  }
+
+  /** 충돌 1회 → 목숨 -1, 0 이면 게임오버. */
+  private loseLife(): void {
+    this.lives -= 1;
+    this.scoreHud.setLives(this.lives, this.maxLives);
+    if (this.lives <= 0) this.gameOver();
   }
 
   /** 세트 통과 누적 → 점수 가산 + 라운드 진행. */
@@ -157,6 +167,7 @@ export class Game {
   reset(): void {
     resetRuleColors(); // 색 초기화 → 라운드 진행으로 다시 배정
     this.score.reset();
+    this.lives = this.maxLives;
     this.round = 1;
     this.setsPassed = 0;
     this.transitionTimer = 0;
@@ -166,6 +177,7 @@ export class Game {
     this.spawner.reset();
     this.player.reset();
     this.scoreHud.update(this.score.value, this.round);
+    this.scoreHud.setLives(this.lives, this.maxLives);
     this.status = 'playing';
   }
 

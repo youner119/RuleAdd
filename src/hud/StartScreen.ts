@@ -12,9 +12,10 @@ interface ModeCard {
 }
 
 const MODES: readonly ModeCard[] = [
-  { id: 'normal', name: '보통', desc: '룰이 라운드마다\n점진적으로 추가' },
-  { id: 'hard', name: '어려움', desc: '룰을 가지고\n시작' },
-  { id: 'blind', name: '블라인드', desc: '룰을 화면에\n표시하지 않음' },
+  { id: 'easy', name: '쉬움', desc: '느린 속도 · 목숨 5\n룰 점진 추가' },
+  { id: 'normal', name: '보통', desc: '기본 속도 · 목숨 3\n룰 점진 추가' },
+  { id: 'hard', name: '어려움', desc: '빠른 속도 · 목숨 3\n룰을 가지고 시작' },
+  { id: 'blind', name: '블라인드', desc: '목숨 3 · 룰 숨김\n전환 때만 공개' },
 ];
 
 export class StartScreen {
