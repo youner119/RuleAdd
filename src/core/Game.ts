@@ -8,6 +8,9 @@ import { ScoreSystem } from './ScoreSystem';
 import { RuleEngine } from '../rules/RuleEngine';
 import { RULES, ensureActiveRuleColors, resetRuleColors } from '../rules/rules';
 import { type Difficulty, difficultyConfig } from './difficulty';
+import { RulePanel } from '../hud/RulePanel';
+import { RoundBanner } from '../hud/RoundBanner';
+import type { Rule } from '../rules/RuleEngine';
 
 /**
  * Game — 게임플레이 상태머신 + 시스템 오케스트레이션 + 진행(라운드/세트).
@@ -20,6 +23,8 @@ export type GameStatus = 'playing' | 'gameover';
 
 /** 라운드당 세트 수(N). 하드코딩 5 금지 — 이 상수로 조정. */
 const SETS_PER_ROUND = 10;
+/** 라운드 전환 시 멈춤(텀) 길이(초). 중앙에 새 룰 표시. */
+const ROUND_TRANSITION_SEC = 1.8;
 /** 테스트용: 충돌 시 게임오버 대신 구를 빨갛게만 표시(계속 진행). 정상=false. */
 const DEBUG_COLLISION_MARK = true;
 
@@ -31,10 +36,13 @@ export class Game {
   private readonly engine: RuleEngine;
   private readonly score = new ScoreSystem();
   private readonly ruleFloor: number;
-  /** 우측 룰 패널 표시 여부(블라인드=false). T15 가 읽음. */
+  /** 우측 룰 패널 표시 여부(블라인드=false). */
   readonly showRulePanel: boolean;
+  private readonly panel: RulePanel;
+  private readonly banner = new RoundBanner();
   private round = 1;
   private setsPassed = 0;
+  private transitionTimer = 0; // >0 이면 라운드 전환 텀(게임 정지)
 
   constructor(scene: THREE.Scene, difficulty: Difficulty = 'normal') {
     const cfg = difficultyConfig(difficulty, RULES.length);
@@ -50,8 +58,9 @@ export class Game {
 
     this.engine = new RuleEngine(RULES);
     this.spawner = new Spawner(scene, this.engine);
+    this.panel = new RulePanel(this.showRulePanel);
 
-    this.applyRound(); // 시작 라운드(난이도 ruleFloor)의 룰 활성 + 색 배정
+    this.applyRound(); // 시작 라운드(난이도 ruleFloor)의 룰 활성 + 색 배정 + 패널
 
     window.addEventListener('keydown', this.onKeyDown);
   }
@@ -59,10 +68,21 @@ export class Game {
   update(dt: number): void {
     if (this.status !== 'playing') return;
 
+    // 라운드 전환 텀 — 게임 정지, 중앙 배너 표시.
+    if (this.transitionTimer > 0) {
+      this.transitionTimer -= dt;
+      if (this.transitionTimer <= 0) {
+        this.transitionTimer = 0;
+        this.banner.hide();
+      }
+      return;
+    }
+
     this.player.update(dt, this.input.direction);
 
     const passed = this.spawner.update(dt);
     if (passed > 0) this.addPassedSets(passed);
+    if (this.transitionTimer > 0) return; // 막 텀 시작 → 이번 프레임 충돌 스킵
 
     const hit = checkCollision(this.player, this.spawner.activeWalls, this.engine);
     if (DEBUG_COLLISION_MARK) {
@@ -78,12 +98,19 @@ export class Game {
     this.setsPassed += n;
     const target = 1 + Math.floor(this.setsPassed / SETS_PER_ROUND);
     if (target > this.round) {
+      const prevActive = this.engine.activeRules.length;
       this.round = target;
       this.applyRound();
-      console.info(
-        `[RuleAdd] Round ${this.round} — 룰 ${Math.min(this.round, RULES.length)} 활성 · 점수 ${this.score.value}`,
-      );
+      const added = this.engine.activeRules.slice(prevActive);
+      this.beginRoundTransition(added);
     }
+  }
+
+  /** 라운드 전환 — 텀 시작 + 중앙 배너(새 룰, 블라인드면 가림). */
+  private beginRoundTransition(added: readonly Rule[]): void {
+    this.transitionTimer = ROUND_TRANSITION_SEC;
+    const newRule = added.length > 0 ? (added[added.length - 1] as Rule) : null;
+    this.banner.show(this.round, this.showRulePanel ? newRule : null);
   }
 
   /** 현재 점수(HUD T16 용). */
@@ -95,6 +122,7 @@ export class Game {
   private applyRound(): void {
     this.engine.activateUpTo(Math.max(this.round, this.ruleFloor));
     ensureActiveRuleColors(this.engine.activeRules);
+    this.panel.render(this.engine.activeRules);
   }
 
   private gameOver(): void {
@@ -108,6 +136,8 @@ export class Game {
     this.score.reset();
     this.round = 1;
     this.setsPassed = 0;
+    this.transitionTimer = 0;
+    this.banner.hide();
     this.applyRound();
     this.spawner.reset();
     this.player.reset();

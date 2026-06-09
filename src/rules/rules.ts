@@ -99,6 +99,6 @@ export function ensureActiveRuleColors(activeRules: readonly Rule[]): void {
     if (avail.length === 0) continue;
     const color = avail[Math.floor(Math.random() * avail.length)] as string;
     rule.setColor(color);
-    console.info(`[RuleAdd] 룰${rule.id} 색 = ${color} (${rule.label})`); // HUD 전 임시
+    // 색→룰 매핑은 RulePanel(T15)이 표시. 블라인드 모드 누설 방지로 콘솔 로그 없음.
   }
 }
