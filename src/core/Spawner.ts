@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CELL_COUNT, LANE_NEAR_Z, PLAYER_Z, SPAWN_Z } from './lane';
-import { generateWallPattern, pickArrows, wrapCell } from './pattern';
+import { generateWallPattern, wrapCell } from './pattern';
 import { Wall } from './Wall';
 import type { RuleEngine } from '../rules/RuleEngine';
 
@@ -17,6 +17,7 @@ const WALL_SPEED = 7; // 월드 단위/초, 일정
 const WALL_SPACING = 14; // 연속 벽(세트) 간 Z 거리 → 스폰 주기 = SPACING/SPEED
 const DESPAWN_Z = LANE_NEAR_Z + 2; // 플레이어를 충분히 지나치면 제거
 const SHIFT_TRIGGER_Z = PLAYER_Z - 4; // 플레이어 4유닛 앞 → 코앞에서 이동
+const COLOR_RATE = 0.5; // 각 블록이 활성 룰 색을 받을 확률 (룰3/4/5)
 
 export class Spawner {
   private readonly walls: Wall[] = [];
@@ -122,20 +123,48 @@ export class Spawner {
     const wall = new Wall(pattern);
     wall.z = SPAWN_Z;
 
-    // 룰2 활성 시 화살표 구성 — 겹침 0 + 끝 블록 안쪽 + 명확한 정답.
-    if (this.engine.isActive(2)) {
-      const dirs = pickArrows(
-        wall.blocks.map((b) => b.cell),
-        CELL_COUNT,
-      );
-      wall.blocks.forEach((block, i) => {
-        const dir = dirs[i] ?? 0;
-        if (dir !== 0) wall.showArrow(block, dir);
-      });
-    }
+    this.decorate(wall);
 
     this.scene.add(wall.object);
     this.walls.push(wall);
+  }
+
+  /**
+   * 세트 구성 — 색(룰3/4/5) + 화살표(룰2) 부여.
+   * 색을 먼저 칠하고, 엔진이 계산한 실제 이동(반대/정지 반영) 기준으로 겹침0 +
+   * 정답이 되도록 화살표를 구성한다(rejection sampling). 실패 시 화살표 0.
+   */
+  private decorate(wall: Wall): void {
+    const blocks = wall.blocks;
+
+    // 1) 색칠 — 활성 색 룰의 targetColor 중 무작위(확률 COLOR_RATE).
+    const activeColors = this.engine.activeRules
+      .map((r) => r.targetColor)
+      .filter((c): c is string => typeof c === 'string');
+    if (activeColors.length > 0) {
+      for (const b of blocks) {
+        if (Math.random() < COLOR_RATE) {
+          wall.setColor(b, activeColors[Math.floor(Math.random() * activeColors.length)] as string);
+        }
+      }
+    }
+
+    // 2) 화살표 — 룰2 활성 시, 실제 이동 기준 겹침0 이 되는 조합을 찾는다.
+    if (!this.engine.isActive(2)) return;
+    for (let t = 0; t < 24; t++) {
+      const dirs = blocks.map(() => Math.floor(Math.random() * 3) - 1); // -1/0/+1
+      blocks.forEach((b, i) => (b.arrowDir = dirs[i] as number)); // effective 계산용
+      const finals = blocks.map((b) =>
+        wrapCell(b.cell + this.engine.resolveBehavior(b).shiftDir, CELL_COUNT),
+      );
+      if (new Set(finals).size === finals.length) {
+        blocks.forEach((b, i) => {
+          if ((dirs[i] as number) !== 0) wall.showArrow(b, dirs[i] as number);
+        });
+        return;
+      }
+    }
+    blocks.forEach((b) => (b.arrowDir = 0)); // 실패 시 정지
   }
 }
 

@@ -27,6 +27,24 @@ const bodyMat = new THREE.MeshStandardMaterial({
 });
 const edgeMat = new THREE.LineBasicMaterial({ color: EDGE_COLOR });
 
+// 색 블록(룰3/4/5) 머티리얼 캐시 — 색별 1개 공유.
+const bodyMats = new Map<string, THREE.MeshStandardMaterial>();
+function bodyMatFor(color: string): THREE.MeshStandardMaterial {
+  let mat = bodyMats.get(color);
+  if (!mat) {
+    const c = new THREE.Color(color);
+    mat = new THREE.MeshStandardMaterial({
+      color: c,
+      emissive: c,
+      emissiveIntensity: 0.12,
+      roughness: 0.6,
+      metalness: 0,
+    });
+    bodyMats.set(color, mat);
+  }
+  return mat;
+}
+
 // --- 화살표(흰색 + 테두리) 공유 리소스 ---
 const ARROW_SHAPE = (() => {
   const s = new THREE.Shape(); // +X(오른쪽)를 가리키는 화살표
@@ -65,6 +83,8 @@ export interface Block {
   color: string | null;
   /** 이 블록의 메시 그룹(body+edges, +arrow). */
   readonly group: THREE.Group;
+  /** body 메시 — 색칠 시 머티리얼 교체용. */
+  readonly body: THREE.Mesh;
 }
 
 export class Wall {
@@ -87,7 +107,7 @@ export class Wall {
       group.add(body, new THREE.LineSegments(edgeGeo, edgeMat));
       group.position.set(cellToX(i), LANE_Y + CELL_SIZE / 2, 0);
       this.object.add(group);
-      this.blocks.push({ cell: i, arrowDir: 0, color: null, group });
+      this.blocks.push({ cell: i, arrowDir: 0, color: null, group, body });
     }
   }
 
@@ -101,6 +121,12 @@ export class Wall {
     arrow.scale.x = dir; // -1 이면 좌측 미러
     arrow.position.set(0, 0, WALL_THICKNESS / 2 + 0.05); // 블록 로컬: 중앙·앞면
     block.group.add(arrow);
+  }
+
+  /** 룰3/4/5: 블록 색칠(body 머티리얼 교체). 테두리는 검정 유지. */
+  setColor(block: Block, color: string): void {
+    block.color = color;
+    block.body.material = bodyMatFor(color);
   }
 
   /** 블록을 새 칸으로 이동(쉬프트 결과). */

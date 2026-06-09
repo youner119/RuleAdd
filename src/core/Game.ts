@@ -5,7 +5,7 @@ import { createLaneGroup } from './lane';
 import { Player } from './Player';
 import { Spawner } from './Spawner';
 import { RuleEngine } from '../rules/RuleEngine';
-import { RULES } from '../rules/rules';
+import { RULES, randomizeRuleColors } from '../rules/rules';
 
 /**
  * Game — 게임플레이 상태머신 + 시스템 오케스트레이션.
@@ -32,6 +32,7 @@ export class Game {
     scene.add(this.player.object);
 
     this.engine = new RuleEngine(RULES);
+    randomizeRuleColors(); // 룰3/4/5 색을 풀에서 무작위 배정(런 시작)
     // 룰 구현 단계: 정의된 룰을 모두 활성화해 각 룰을 바로 확인.
     // T12 에서 라운드 기반 누적 활성(activateUpTo(round))으로 대체.
     this.engine.activateUpTo(RULES.length);
@@ -59,6 +60,7 @@ export class Game {
   }
 
   reset(): void {
+    randomizeRuleColors(); // 재시작마다 룰 색 새로 뽑음
     this.spawner.reset();
     this.player.reset();
     this.status = 'playing';

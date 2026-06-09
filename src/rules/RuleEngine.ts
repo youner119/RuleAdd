@@ -35,6 +35,10 @@ export interface Rule {
   appliesTo(block: RuleBlock): boolean;
   /** 행동을 변형(이전 결과 위에 덮음). */
   modify(behavior: BlockBehavior, block: RuleBlock): BlockBehavior;
+  /** 색 룰의 대상 색(런마다 랜덤). 비색 룰은 undefined. */
+  readonly targetColor?: string | null;
+  /** 색 룰의 대상 색 설정(randomizeRuleColors 가 호출). */
+  setColor?(color: string): void;
 }
 
 const BASE_BEHAVIOR: BlockBehavior = { collidable: true, shiftDir: 0 };
