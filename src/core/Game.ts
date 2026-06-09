@@ -11,6 +11,7 @@ import { type Difficulty, difficultyConfig } from './difficulty';
 import { RulePanel } from '../hud/RulePanel';
 import { RoundBanner } from '../hud/RoundBanner';
 import { ScoreHud } from '../hud/ScoreHud';
+import { ControlsHud } from '../hud/ControlsHud';
 import { GameOverScreen } from '../hud/GameOverScreen';
 import type { Rule } from '../rules/RuleEngine';
 
@@ -29,6 +30,8 @@ const SETS_PER_ROUND = 10;
 const ROUND_TRANSITION_SEC = 1.8;
 /** 테스트용: 충돌 시 게임오버 대신 구를 빨갛게만 표시(계속 진행). 정상=false. */
 const DEBUG_COLLISION_MARK = false;
+/** 스킵(Space) 시 벽 진행 속도 배율. 충돌 판정은 유지 — 위험 감수 빨리감기. */
+const FAST_FORWARD_MULT = 4;
 
 export class Game {
   private status: GameStatus = 'playing';
@@ -46,6 +49,7 @@ export class Game {
   private readonly panel: RulePanel;
   private readonly banner = new RoundBanner();
   private readonly scoreHud = new ScoreHud();
+  private readonly controlsHud = new ControlsHud();
   private readonly gameOverScreen: GameOverScreen;
   private round = 1;
   private setsPassed = 0;
@@ -95,7 +99,8 @@ export class Game {
 
     this.player.update(dt, this.input.direction);
 
-    const passed = this.spawner.update(dt);
+    const speedMul = this.input.fastForward ? FAST_FORWARD_MULT : 1;
+    const passed = this.spawner.update(dt, speedMul);
     if (passed > 0) this.addPassedSets(passed);
     if (this.transitionTimer > 0) return; // 막 텀 시작 → 이번 프레임 충돌 스킵
 
@@ -122,11 +127,14 @@ export class Game {
     this.scoreHud.update(this.score.value, this.round);
   }
 
-  /** 라운드 전환 — 텀 시작 + 중앙 배너(새 룰, 블라인드면 가림). */
+  /**
+   * 라운드 전환 — 텀 시작 + 중앙 배너(새 룰).
+   * 블라인드 모드는 우측 룰 패널만 끄고, 이 전환 배너에서는 룰을 공개한다.
+   */
   private beginRoundTransition(added: readonly Rule[]): void {
     this.transitionTimer = ROUND_TRANSITION_SEC;
     const newRule = added.length > 0 ? (added[added.length - 1] as Rule) : null;
-    this.banner.show(this.round, this.showRulePanel ? newRule : null);
+    this.banner.show(this.round, newRule);
   }
 
   /** 현재 점수(HUD T16 용). */
@@ -170,6 +178,7 @@ export class Game {
     this.panel.dispose();
     this.banner.dispose();
     this.scoreHud.dispose();
+    this.controlsHud.dispose();
     this.gameOverScreen.dispose();
   }
 
@@ -177,6 +186,9 @@ export class Game {
     // R 은 언제든 재시작.
     if (e.key === 'r' || e.key === 'R') {
       this.reset();
+    } else if (e.key === 'm' || e.key === 'M') {
+      // M 은 언제든 메인 메뉴 복귀(R 재시작처럼 확인 없음).
+      this.onMenu();
     }
   };
 }

@@ -13,7 +13,7 @@ interface ModeCard {
 
 const MODES: readonly ModeCard[] = [
   { id: 'normal', name: '보통', desc: '룰이 라운드마다\n점진적으로 추가' },
-  { id: 'hard', name: '어려움', desc: '룰 1~5 전부로\n시작' },
+  { id: 'hard', name: '어려움', desc: '룰을 가지고\n시작' },
   { id: 'blind', name: '블라인드', desc: '룰을 화면에\n표시하지 않음' },
 ];
 
@@ -43,7 +43,7 @@ export class StartScreen {
     this.root.appendChild(title);
 
     const subtitle = document.createElement('div');
-    subtitle.textContent = '다가오는 벽의 빈 칸으로 피하라 · a / d 로 이동';
+    subtitle.textContent = '다가오는 벽을 피하라';
     subtitle.style.cssText = 'font:400 15px/1 system-ui,sans-serif;color:#888;margin-top:-16px;';
     this.root.appendChild(subtitle);
 

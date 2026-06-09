@@ -14,7 +14,7 @@ import type { RuleEngine } from '../rules/RuleEngine';
  */
 
 const WALL_SPEED = 7; // 월드 단위/초, 일정
-const WALL_SPACING = 14; // 연속 벽(세트) 간 Z 거리 → 스폰 주기 = SPACING/SPEED
+const WALL_SPACING = 28; // 연속 벽(세트) 간 Z 거리 → 스폰 주기 = SPACING/SPEED
 const DESPAWN_Z = LANE_NEAR_Z + 2; // 플레이어를 충분히 지나치면 제거
 const SHIFT_TRIGGER_Z = PLAYER_Z - 4; // 플레이어 4유닛 앞 → 코앞에서 이동
 const COLOR_RATE = 0.5; // 각 블록이 활성 룰 색을 받을 확률 (룰3/4/5)
@@ -42,9 +42,13 @@ export class Spawner {
     this.lastSig = '';
   }
 
-  /** @returns 이 프레임에 플레이어를 지나친(통과한) 세트 수. */
-  update(dt: number): number {
-    const dz = WALL_SPEED * dt;
+  /**
+   * @param speedMul 진행 속도 배율(스페이스바 스킵 시 >1). 벽 이동·스폰 주기에
+   *   동일 적용 → 세트 간격(WALL_SPACING)은 배율과 무관하게 유지.
+   * @returns 이 프레임에 플레이어를 지나친(통과한) 세트 수.
+   */
+  update(dt: number, speedMul = 1): number {
+    const dz = WALL_SPEED * speedMul * dt;
 
     // 이동 + 룰2 쉬프트 트리거
     for (const w of this.walls) {

@@ -23,7 +23,7 @@ export const LANE_Y = 0.5; // 레인 표면을 격자(y=0) 위로 올린 높이.
 
 // --- 깊이(Z) 레이아웃 ---
 export const PLAYER_Z = 3; // 플레이어 평면 = 충돌 평면 (T7)
-export const SPAWN_Z = -32; // 벽 스폰 위치 (먼 곳) — 레인 러웨이 길이
+export const SPAWN_Z = -60; // 벽 스폰 위치 (먼 곳) — 레인 러웨이 길이
 export const LANE_NEAR_Z = 6; // 바닥 근거리 끝 (플레이어 뒤)
 export const LANE_FAR_Z = SPAWN_Z - 2; // 바닥 원거리 끝
 

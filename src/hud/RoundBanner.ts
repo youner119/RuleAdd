@@ -2,8 +2,8 @@ import type { Rule } from '../rules/RuleEngine';
 
 /**
  * RoundBanner — 라운드 전환 시 화면 중앙에 잠깐 표시(텀). "ROUND N" +
- * 새로 추가된 룰(번호·색 스와치·라벨). 블라인드 모드는 룰 내용을 가리고
- * 라운드 번호만 보여준다(newRule=null).
+ * 새로 추가된 룰(번호·색 스와치·라벨). 블라인드 모드도 이 전환 배너에서는
+ * 룰을 공개한다(우측 룰 패널만 숨김). 새 룰이 없는 라운드는 newRule=null.
  */
 export class RoundBanner {
   private readonly root: HTMLDivElement;
@@ -53,7 +53,7 @@ export class RoundBanner {
     this.ruleEl.replaceChildren();
     if (newRule) {
       const tag = document.createElement('span');
-      tag.textContent = `새 룰 ${newRule.id}`;
+      tag.textContent = `룰 ${newRule.id}.`;
       tag.style.cssText = 'font-weight:800;color:#444;';
 
       this.ruleEl.appendChild(tag);
