@@ -7,6 +7,7 @@ import { Spawner } from './Spawner';
 import { ScoreSystem } from './ScoreSystem';
 import { RuleEngine } from '../rules/RuleEngine';
 import { RULES, ensureActiveRuleColors, resetRuleColors } from '../rules/rules';
+import { type Difficulty, difficultyConfig } from './difficulty';
 
 /**
  * Game — 게임플레이 상태머신 + 시스템 오케스트레이션 + 진행(라운드/세트).
@@ -19,8 +20,6 @@ export type GameStatus = 'playing' | 'gameover';
 
 /** 라운드당 세트 수(N). 하드코딩 5 금지 — 이 상수로 조정. */
 const SETS_PER_ROUND = 10;
-/** 시작 라운드 — 테스트용(상위 룰 빨리 보려면 키움). 정상=1. */
-const DEBUG_START_ROUND = 1;
 /** 테스트용: 충돌 시 게임오버 대신 구를 빨갛게만 표시(계속 진행). 정상=false. */
 const DEBUG_COLLISION_MARK = true;
 
@@ -31,10 +30,17 @@ export class Game {
   private readonly spawner: Spawner;
   private readonly engine: RuleEngine;
   private readonly score = new ScoreSystem();
-  private round = DEBUG_START_ROUND;
+  private readonly ruleFloor: number;
+  /** 우측 룰 패널 표시 여부(블라인드=false). T15 가 읽음. */
+  readonly showRulePanel: boolean;
+  private round = 1;
   private setsPassed = 0;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, difficulty: Difficulty = 'normal') {
+    const cfg = difficultyConfig(difficulty, RULES.length);
+    this.ruleFloor = cfg.ruleFloor;
+    this.showRulePanel = cfg.showRulePanel;
+
     this.input = new InputController();
 
     scene.add(createLaneGroup());
@@ -45,7 +51,7 @@ export class Game {
     this.engine = new RuleEngine(RULES);
     this.spawner = new Spawner(scene, this.engine);
 
-    this.applyRound(); // 시작 라운드의 룰 활성 + 색 배정
+    this.applyRound(); // 시작 라운드(난이도 ruleFloor)의 룰 활성 + 색 배정
 
     window.addEventListener('keydown', this.onKeyDown);
   }
@@ -70,7 +76,7 @@ export class Game {
   private addPassedSets(n: number): void {
     for (let i = 0; i < n; i++) this.score.addSet(this.round); // 통과 시점 라운드로 가산
     this.setsPassed += n;
-    const target = DEBUG_START_ROUND + Math.floor(this.setsPassed / SETS_PER_ROUND);
+    const target = 1 + Math.floor(this.setsPassed / SETS_PER_ROUND);
     if (target > this.round) {
       this.round = target;
       this.applyRound();
@@ -85,9 +91,9 @@ export class Game {
     return this.score.value;
   }
 
-  /** 현재 라운드에 맞춰 룰 누적 활성 + 새 색 룰 색 배정. */
+  /** 활성 룰 수 = min(maxRules, max(round, ruleFloor)) — 어려움은 처음부터 전부. */
   private applyRound(): void {
-    this.engine.activateUpTo(this.round);
+    this.engine.activateUpTo(Math.max(this.round, this.ruleFloor));
     ensureActiveRuleColors(this.engine.activeRules);
   }
 
@@ -100,7 +106,7 @@ export class Game {
   reset(): void {
     resetRuleColors(); // 색 초기화 → 라운드 진행으로 다시 배정
     this.score.reset();
-    this.round = DEBUG_START_ROUND;
+    this.round = 1;
     this.setsPassed = 0;
     this.applyRound();
     this.spawner.reset();

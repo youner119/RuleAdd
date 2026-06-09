@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GameLoop } from './core/GameLoop';
 import { PLAYER_Z } from './core/lane';
 import { Game } from './core/Game';
+import { StartScreen } from './hud/StartScreen';
 
 /**
  * main — 렌더 인프라(renderer/camera/scene/lights/loop)만 담당.
@@ -68,8 +69,11 @@ dir.shadow.camera.bottom = -12;
 dir.shadow.bias = -0.0005;
 scene.add(dir);
 
-// --- Game (게임플레이: 레인·구·벽·충돌·상태) ---
-const game = new Game(scene);
+// --- Game (난이도 선택 후 시작) ---
+let game: Game | null = null;
+new StartScreen(mount, (difficulty) => {
+  game = new Game(scene, difficulty);
+});
 
 // --- Resize ---
 function onResize(): void {
@@ -84,7 +88,7 @@ onResize();
 
 // --- Game loop ---
 function update(dt: number): void {
-  game.update(dt);
+  game?.update(dt); // 시작 화면 동안엔 game=null
 }
 function render(): void {
   renderer.render(scene, camera);
@@ -93,4 +97,4 @@ function render(): void {
 const loop = new GameLoop(update, render);
 loop.start();
 
-console.info(`[RuleAdd] T13 ready — score (base x round^2), three.js r${THREE.REVISION}`);
+console.info(`[RuleAdd] T14 ready — difficulty start screen, three.js r${THREE.REVISION}`);
