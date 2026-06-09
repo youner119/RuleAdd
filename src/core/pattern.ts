@@ -43,3 +43,25 @@ export function generateWallPattern(opts: PatternOptions = {}): boolean[] {
   for (let i = 0; i < gapCount; i++) blocked[idx[i] as number] = false;
   return blocked;
 }
+
+/** 칸 인덱스를 wrap(순환)해 [0, cellCount) 로 — 끝에서 바깥으로 가면 반대쪽 끝. */
+export function wrapCell(cell: number, cellCount: number): number {
+  return ((cell % cellCount) + cellCount) % cellCount;
+}
+
+/**
+ * 블록 화살표 구성(룰2) — 각 블록에 방향(-1/0/+1)을 랜덤 부여하되,
+ * 이동 후 최종 칸이 모두 distinct(겹침 0)가 되도록 만든다 → 항상 명확한
+ * 정답(최종 gap)이 존재. 이동은 wrap: 오른쪽 끝이 오른쪽으로 가면 제일
+ * 왼쪽으로, 왼쪽 끝이 왼쪽으로 가면 제일 오른쪽으로 순환한다.
+ *
+ * cells = 블록들의 현재 칸(같은 순서로 dir 반환). 실패 시 전부 정지(유효).
+ */
+export function pickArrows(cells: readonly number[], cellCount: number): number[] {
+  for (let t = 0; t < 24; t++) {
+    const dirs = cells.map(() => Math.floor(Math.random() * 3) - 1); // -1/0/+1
+    const finals = cells.map((c, i) => wrapCell(c + (dirs[i] as number), cellCount));
+    if (new Set(finals).size === finals.length) return dirs; // 겹침 없음
+  }
+  return cells.map(() => 0);
+}

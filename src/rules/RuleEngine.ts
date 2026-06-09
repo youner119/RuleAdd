@@ -9,35 +9,35 @@
  * 이 fold 에 끼워넣기만 하면 된다.
  */
 
-/** 룰이 읽는 벽 속성(최소 인터페이스). 구체 Wall 이 이 속성을 갖춘다. */
-export interface RuleWall {
+/** 룰이 읽는 블록(개별 벽) 속성. 구체 Block 이 이 속성을 갖춘다. */
+export interface RuleBlock {
   /** 룰3/4/5 색 (없으면 null). */
   color: string | null;
   /** 룰2 화살표 방향 (-1=좌 / 0=없음 / +1=우). */
   arrowDir: number;
 }
 
-/** 룰이 결정하는 벽의 행동. */
-export interface WallBehavior {
-  /** 룰5: 특정 색 벽은 구와 충돌하지 않음. */
+/** 룰이 결정하는 블록의 행동. */
+export interface BlockBehavior {
+  /** 룰5: 특정 색 블록은 구와 충돌하지 않음. */
   collidable: boolean;
-  /** 룰2/3/4: 근접 시 패턴 쉬프트 방향 (-1/0/+1). */
+  /** 룰2/3/4: 근접 시 블록 쉬프트 방향 (-1/0/+1). */
   shiftDir: number;
 }
 
-/** 데이터 주도 룰. */
+/** 데이터 주도 룰 — 블록별로 적용. */
 export interface Rule {
   /** 룰 번호(1..) = 추가 순서 = 우선순위(클수록 우선). */
   id: number;
   /** HUD 표시용 라벨(T15). */
   label: string;
-  /** 이 룰이 해당 벽에 적용되는가. */
-  appliesTo(wall: RuleWall): boolean;
+  /** 이 룰이 해당 블록에 적용되는가. */
+  appliesTo(block: RuleBlock): boolean;
   /** 행동을 변형(이전 결과 위에 덮음). */
-  modify(behavior: WallBehavior, wall: RuleWall): WallBehavior;
+  modify(behavior: BlockBehavior, block: RuleBlock): BlockBehavior;
 }
 
-const BASE_BEHAVIOR: WallBehavior = { collidable: true, shiftDir: 0 };
+const BASE_BEHAVIOR: BlockBehavior = { collidable: true, shiftDir: 0 };
 
 export class RuleEngine {
   private readonly rules: readonly Rule[]; // 전체 룰 (id 오름차순 = 추가 순서)
@@ -57,11 +57,16 @@ export class RuleEngine {
     return this.rules.slice(0, this.activeCount);
   }
 
-  /** 활성 룰을 순서대로 fold → 후순위 우선. */
-  resolveBehavior(wall: RuleWall): WallBehavior {
-    let behavior: WallBehavior = { ...BASE_BEHAVIOR };
+  /** 특정 룰 id 가 활성인가 (스폰 시 화살표/색 부여 판단에 사용). */
+  isActive(id: number): boolean {
+    return this.activeRules.some((r) => r.id === id);
+  }
+
+  /** 활성 룰을 순서대로 fold → 후순위 우선. 블록별로 호출. */
+  resolveBehavior(block: RuleBlock): BlockBehavior {
+    let behavior: BlockBehavior = { ...BASE_BEHAVIOR };
     for (const rule of this.activeRules) {
-      if (rule.appliesTo(wall)) behavior = rule.modify(behavior, wall);
+      if (rule.appliesTo(block)) behavior = rule.modify(behavior, block);
     }
     return behavior;
   }

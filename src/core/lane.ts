@@ -23,7 +23,7 @@ export const LANE_Y = 0.5; // 레인 표면을 격자(y=0) 위로 올린 높이.
 
 // --- 깊이(Z) 레이아웃 ---
 export const PLAYER_Z = 3; // 플레이어 평면 = 충돌 평면 (T7)
-export const SPAWN_Z = -22; // 벽 스폰 위치 (먼 곳, T5)
+export const SPAWN_Z = -32; // 벽 스폰 위치 (먼 곳) — 레인 러웨이 길이
 export const LANE_NEAR_Z = 6; // 바닥 근거리 끝 (플레이어 뒤)
 export const LANE_FAR_Z = SPAWN_Z - 2; // 바닥 원거리 끝
 
@@ -33,8 +33,8 @@ const GRID_COLOR = 0xdadada; // 바닥 격자선 (T2 톤, 옅은 회색)
 const GRID_CENTER_COLOR = 0xc4c4c4; // 격자 중앙 축선
 const LANE_BORDER_COLOR = 0x888888; // 레인 경계 테두리 (4 레인 구별용, 격자보다 진하게)
 
-/** 격자 한 변(월드 단위). 1단위 셀에 맞춰 divisions = size. 깊이(스폰 z≈-22)까지 덮음. */
-const GRID_SIZE = 50;
+/** 격자 한 변(월드 단위). 1단위 셀에 맞춰 divisions = size. 깊이(스폰 z≈-32)까지 덮음. */
+const GRID_SIZE = 70;
 
 /** 레인 X 경계 (x = -2 ~ 2). Player clamp 등에서 사용. */
 export const LANE_X_MIN = cellToX(0) - CELL_SIZE / 2;

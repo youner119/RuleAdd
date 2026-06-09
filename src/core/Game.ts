@@ -31,10 +31,12 @@ export class Game {
     this.player = new Player();
     scene.add(this.player.object);
 
-    this.spawner = new Spawner(scene);
-
     this.engine = new RuleEngine(RULES);
-    this.engine.activateUpTo(1); // 라운드1 = 룰1. T12 가 라운드에 따라 누적 활성.
+    // 룰 구현 단계: 정의된 룰을 모두 활성화해 각 룰을 바로 확인.
+    // T12 에서 라운드 기반 누적 활성(activateUpTo(round))으로 대체.
+    this.engine.activateUpTo(RULES.length);
+
+    this.spawner = new Spawner(scene, this.engine);
 
     window.addEventListener('keydown', this.onKeyDown);
   }

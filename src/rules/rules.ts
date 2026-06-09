@@ -13,4 +13,12 @@ const rule1: Rule = {
   modify: (behavior) => behavior, // base 그대로
 };
 
-export const RULES: readonly Rule[] = [rule1];
+/** 룰2 — 화살표 있는 블록은 근접 시 화살표 방향으로 1칸 쉬프트. */
+const rule2: Rule = {
+  id: 2,
+  label: '화살표 방향으로 벽이 움직인다',
+  appliesTo: (block) => block.arrowDir !== 0,
+  modify: (behavior, block) => ({ ...behavior, shiftDir: block.arrowDir }),
+};
+
+export const RULES: readonly Rule[] = [rule1, rule2];
