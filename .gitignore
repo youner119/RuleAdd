@@ -1,0 +1,32 @@
+# OMC planning/state (local-only)
+.omc/
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Vite
+.vite/
+*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
