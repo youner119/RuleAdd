@@ -105,4 +105,4 @@ function render(): void {
 const loop = new GameLoop(update, render);
 loop.start();
 
-console.info(`[RuleAdd] T16 ready — score HUD + game over screen, three.js r${THREE.REVISION}`);
+console.info(`[RuleAdd] ready — three.js r${THREE.REVISION}`);
