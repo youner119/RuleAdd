@@ -37,8 +37,8 @@ export interface Rule {
   modify(behavior: BlockBehavior, block: RuleBlock): BlockBehavior;
   /** 색 룰의 대상 색(런마다 랜덤). 비색 룰은 undefined. */
   readonly targetColor?: string | null;
-  /** 색 룰의 대상 색 설정(randomizeRuleColors 가 호출). */
-  setColor?(color: string): void;
+  /** 색 룰의 대상 색 설정(null=초기화). 활성화 시점에 배정. */
+  setColor?(color: string | null): void;
 }
 
 const BASE_BEHAVIOR: BlockBehavior = { collidable: true, shiftDir: 0 };

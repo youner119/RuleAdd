@@ -27,23 +27,22 @@ const MAX_X = LANE_X_MAX - PLAYER_RADIUS;
 export class Player {
   /** 씬에 추가하는 루트. */
   readonly object: THREE.Group;
+  private readonly bodyMat: THREE.MeshStandardMaterial;
 
   constructor() {
     this.object = new THREE.Group();
 
     const geo = new THREE.SphereGeometry(PLAYER_RADIUS, 48, 32);
 
-    const body = new THREE.Mesh(
-      geo,
-      // emissive 흰색을 약하게 더해 음영진 측면도 흰색으로 읽히게. 형태는 테두리/그림자가 담당.
-      new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: 0xffffff,
-        emissiveIntensity: 0.25,
-        roughness: 0.6,
-        metalness: 0,
-      }),
-    );
+    // emissive 흰색을 약하게 더해 음영진 측면도 흰색으로 읽히게. 형태는 테두리/그림자가 담당.
+    this.bodyMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.25,
+      roughness: 0.6,
+      metalness: 0,
+    });
+    const body = new THREE.Mesh(geo, this.bodyMat);
     body.castShadow = true;
 
     const outline = new THREE.Mesh(
@@ -62,9 +61,17 @@ export class Player {
     return this.object.position.x;
   }
 
-  /** 재시작 — 시작 셀 X 로 복귀. */
+  /** 재시작 — 시작 셀 X 로 복귀 + 충돌 표시 해제. */
   reset(): void {
     this.object.position.x = cellToX(START_CELL);
+    this.setHit(false);
+  }
+
+  /** 테스트용 충돌 표시 — true=빨강, false=흰색. */
+  setHit(hit: boolean): void {
+    const c = hit ? 0xe23b3b : 0xffffff;
+    this.bodyMat.color.setHex(c);
+    this.bodyMat.emissive.setHex(c);
   }
 
   /**

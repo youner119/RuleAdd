@@ -52,7 +52,7 @@ function makeColorRule(
     get targetColor() {
       return target;
     },
-    setColor(color: string) {
+    setColor(color: string | null) {
       target = color;
     },
     appliesTo: (block) => target !== null && block.color === target,
@@ -80,20 +80,25 @@ const rule5 = makeColorRule(5, '이 색은 통과할 수 있다', (behavior) => 
 
 export const RULES: readonly Rule[] = [rule1, rule2, rule3, rule4, rule5];
 
-/** 룰3/4/5 에 COLOR_POOL 에서 서로 다른 색을 무작위 배정(런 시작/재시작마다). */
-export function randomizeRuleColors(): void {
-  const pool = [...COLOR_POOL];
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const tmp = pool[i] as string;
-    pool[i] = pool[j] as string;
-    pool[j] = tmp;
+/** 모든 색 룰의 배정 색을 비운다(재시작 시). */
+export function resetRuleColors(): void {
+  for (const rule of RULES) rule.setColor?.(null);
+}
+
+/**
+ * 활성 룰 중 아직 색이 없는 색 룰에 COLOR_POOL 의 미사용 색을 무작위 배정.
+ * 라운드 진행으로 색 룰이 새로 활성화되는 시점에 호출 → 그때 색이 정해진다.
+ */
+export function ensureActiveRuleColors(activeRules: readonly Rule[]): void {
+  for (const rule of activeRules) {
+    if (!rule.setColor || rule.targetColor != null) continue; // 색 룰 아님 / 이미 배정
+    const used = new Set(
+      RULES.map((r) => r.targetColor).filter((c): c is string => typeof c === 'string'),
+    );
+    const avail = COLOR_POOL.filter((c) => !used.has(c));
+    if (avail.length === 0) continue;
+    const color = avail[Math.floor(Math.random() * avail.length)] as string;
+    rule.setColor(color);
+    console.info(`[RuleAdd] 룰${rule.id} 색 = ${color} (${rule.label})`); // HUD 전 임시
   }
-  rule3.setColor?.(pool[0] as string);
-  rule4.setColor?.(pool[1] as string);
-  rule5.setColor?.(pool[2] as string);
-  // T15(HUD) 전 임시: 이번 런의 색→룰 매핑을 콘솔에 표시.
-  console.info(
-    `[RuleAdd] 색 매핑 — 반대이동:${pool[0]} / 정지:${pool[1]} / 통과:${pool[2]}`,
-  );
 }

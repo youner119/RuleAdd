@@ -5,16 +5,23 @@ import { createLaneGroup } from './lane';
 import { Player } from './Player';
 import { Spawner } from './Spawner';
 import { RuleEngine } from '../rules/RuleEngine';
-import { RULES, randomizeRuleColors } from '../rules/rules';
+import { RULES, ensureActiveRuleColors, resetRuleColors } from '../rules/rules';
 
 /**
- * Game — 게임플레이 상태머신 + 시스템 오케스트레이션.
+ * Game — 게임플레이 상태머신 + 시스템 오케스트레이션 + 진행(라운드/세트).
  *
- * main.ts 는 렌더 인프라(renderer/camera/scene/loop)만, 게임 내용물
- * (레인·구·벽·충돌·상태)은 Game 이 소유한다. 이후 T12(라운드/세트)·
- * T13(점수)·T14(난이도)·T16(UI)이 이 위에 쌓인다.
+ * 세트(벽)를 SETS_PER_ROUND 개 통과할 때마다 라운드 +1, 라운드마다 룰이
+ * 1→5 순서로 하나씩 누적 활성화된다(activateUpTo). 새로 활성화되는 색 룰은
+ * 그 시점에 풀에서 색을 배정받는다.
  */
 export type GameStatus = 'playing' | 'gameover';
+
+/** 라운드당 세트 수(N). 하드코딩 5 금지 — 이 상수로 조정. */
+const SETS_PER_ROUND = 10;
+/** 시작 라운드 — 테스트용(상위 룰 빨리 보려면 키움). 정상=1. */
+const DEBUG_START_ROUND = 1;
+/** 테스트용: 충돌 시 게임오버 대신 구를 빨갛게만 표시(계속 진행). 정상=false. */
+const DEBUG_COLLISION_MARK = true;
 
 export class Game {
   private status: GameStatus = 'playing';
@@ -22,6 +29,8 @@ export class Game {
   private readonly player: Player;
   private readonly spawner: Spawner;
   private readonly engine: RuleEngine;
+  private round = DEBUG_START_ROUND;
+  private setsPassed = 0;
 
   constructor(scene: THREE.Scene) {
     this.input = new InputController();
@@ -32,12 +41,9 @@ export class Game {
     scene.add(this.player.object);
 
     this.engine = new RuleEngine(RULES);
-    randomizeRuleColors(); // 룰3/4/5 색을 풀에서 무작위 배정(런 시작)
-    // 룰 구현 단계: 정의된 룰을 모두 활성화해 각 룰을 바로 확인.
-    // T12 에서 라운드 기반 누적 활성(activateUpTo(round))으로 대체.
-    this.engine.activateUpTo(RULES.length);
-
     this.spawner = new Spawner(scene, this.engine);
+
+    this.applyRound(); // 시작 라운드의 룰 활성 + 색 배정
 
     window.addEventListener('keydown', this.onKeyDown);
   }
@@ -46,29 +52,54 @@ export class Game {
     if (this.status !== 'playing') return;
 
     this.player.update(dt, this.input.direction);
-    this.spawner.update(dt);
 
-    if (checkCollision(this.player, this.spawner.activeWalls, this.engine)) {
+    const passed = this.spawner.update(dt);
+    if (passed > 0) this.addPassedSets(passed);
+
+    const hit = checkCollision(this.player, this.spawner.activeWalls, this.engine);
+    if (DEBUG_COLLISION_MARK) {
+      this.player.setHit(hit); // 게임오버 대신 빨강 표시(계속 진행)
+    } else if (hit) {
       this.gameOver();
     }
+  }
+
+  /** 세트 통과 누적 → 라운드 진행. */
+  private addPassedSets(n: number): void {
+    this.setsPassed += n;
+    const target = DEBUG_START_ROUND + Math.floor(this.setsPassed / SETS_PER_ROUND);
+    if (target > this.round) {
+      this.round = target;
+      this.applyRound();
+      console.info(`[RuleAdd] Round ${this.round} — 룰 ${Math.min(this.round, RULES.length)} 활성`);
+    }
+  }
+
+  /** 현재 라운드에 맞춰 룰 누적 활성 + 새 색 룰 색 배정. */
+  private applyRound(): void {
+    this.engine.activateUpTo(this.round);
+    ensureActiveRuleColors(this.engine.activeRules);
   }
 
   private gameOver(): void {
     this.status = 'gameover';
     // T13(최종 점수) / T16(게임오버 UI 오버레이) 에서 표시 보강.
-    console.info('[RuleAdd] GAME OVER — press R or Space to restart');
+    console.info('[RuleAdd] GAME OVER — press R to restart');
   }
 
   reset(): void {
-    randomizeRuleColors(); // 재시작마다 룰 색 새로 뽑음
+    resetRuleColors(); // 색 초기화 → 라운드 진행으로 다시 배정
+    this.round = DEBUG_START_ROUND;
+    this.setsPassed = 0;
+    this.applyRound();
     this.spawner.reset();
     this.player.reset();
     this.status = 'playing';
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
-    if (this.status !== 'gameover') return;
-    if (e.key === 'r' || e.key === 'R' || e.key === ' ') {
+    // R 은 언제든 재시작.
+    if (e.key === 'r' || e.key === 'R') {
       this.reset();
     }
   };

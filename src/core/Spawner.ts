@@ -42,7 +42,8 @@ export class Spawner {
     this.lastSig = '';
   }
 
-  update(dt: number): void {
+  /** @returns 이 프레임에 플레이어를 지나친(통과한) 세트 수. */
+  update(dt: number): number {
     const dz = WALL_SPEED * dt;
 
     // 이동 + 룰2 쉬프트 트리거
@@ -54,13 +55,14 @@ export class Spawner {
       }
     }
 
-    // despawn (플레이어 지나침)
+    // despawn (플레이어 지나침) = 세트 통과
+    let passed = 0;
     for (let i = this.walls.length - 1; i >= 0; i--) {
       const w = this.walls[i];
       if (w && w.z > DESPAWN_Z) {
         this.scene.remove(w.object);
         this.walls.splice(i, 1);
-        // TODO(T12): 세트 통과 카운트 + 점수(T13).
+        passed++;
       }
     }
 
@@ -70,6 +72,8 @@ export class Spawner {
       this.distSinceSpawn -= WALL_SPACING;
       this.spawn();
     }
+
+    return passed;
   }
 
   /**

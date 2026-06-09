@@ -93,4 +93,4 @@ function render(): void {
 const loop = new GameLoop(update, render);
 loop.start();
 
-console.info(`[RuleAdd] T11 ready — rules 3/4/5 (colors), three.js r${THREE.REVISION}`);
+console.info(`[RuleAdd] T12 ready — round progression, three.js r${THREE.REVISION}`);
