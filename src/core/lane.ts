@@ -36,9 +36,9 @@ const LANE_BORDER_COLOR = 0x888888; // 레인 경계 테두리 (4 레인 구별�
 /** 격자 한 변(월드 단위). 1단위 셀에 맞춰 divisions = size. 깊이(스폰 z≈-22)까지 덮음. */
 const GRID_SIZE = 50;
 
-/** 레인 X 경계 (x = -2 ~ 2). */
-const LANE_X_MIN = cellToX(0) - CELL_SIZE / 2;
-const LANE_X_MAX = cellToX(CELL_COUNT - 1) + CELL_SIZE / 2;
+/** 레인 X 경계 (x = -2 ~ 2). Player clamp 등에서 사용. */
+export const LANE_X_MIN = cellToX(0) - CELL_SIZE / 2;
+export const LANE_X_MAX = cellToX(CELL_COUNT - 1) + CELL_SIZE / 2;
 
 /**
  * 흰 바닥(contact shadow 받음) + T2식 GridHelper(맵 전체 격자).

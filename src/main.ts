@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GameLoop } from './core/GameLoop';
 import { createLaneGroup, PLAYER_Z } from './core/lane';
 import { Player } from './core/Player';
+import { InputController } from './core/InputController';
 
 /**
  * 무대 + 배우: 흰 배경, 3인칭 뒤+위 perspective 카메라, 조명(+그림자),
@@ -76,6 +77,9 @@ scene.add(createLaneGroup());
 const player = new Player();
 scene.add(player.object);
 
+// --- Input ---
+const input = new InputController();
+
 // --- Resize ---
 function onResize(): void {
   const w = window.innerWidth;
@@ -88,8 +92,9 @@ window.addEventListener('resize', onResize);
 onResize();
 
 // --- Game loop ---
-function update(_dt: number): void {
-  // T4(Player 이동) / T5(Spawner) 등 시스템 update 가 여기 연결된다.
+function update(dt: number): void {
+  player.update(dt, input.direction);
+  // T5(Spawner) / T7(Collision) 등 시스템 update 가 여기 추가된다.
 }
 function render(): void {
   renderer.render(scene, camera);
@@ -98,4 +103,4 @@ function render(): void {
 const loop = new GameLoop(update, render);
 loop.start();
 
-console.info(`[RuleAdd] T3 stage ready — lane + player, three.js r${THREE.REVISION}`);
+console.info(`[RuleAdd] T4 ready — lane + player (a/d move), three.js r${THREE.REVISION}`);
