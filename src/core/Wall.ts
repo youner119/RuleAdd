@@ -33,6 +33,10 @@ export class Wall {
   /** 칸별 막힘 여부 (true=막힘, false=gap). 길이 CELL_COUNT. */
   readonly blocked: readonly boolean[];
 
+  // 룰 속성 (RuleWall) — 룰3/4/5 색, 룰2 화살표. T10/T11 에서 설정.
+  color: string | null = null;
+  arrowDir = 0; // -1/0/+1
+
   constructor(blocked: readonly boolean[]) {
     this.blocked = blocked;
     this.object = new THREE.Group();

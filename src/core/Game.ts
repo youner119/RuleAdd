@@ -4,6 +4,8 @@ import { InputController } from './InputController';
 import { createLaneGroup } from './lane';
 import { Player } from './Player';
 import { Spawner } from './Spawner';
+import { RuleEngine } from '../rules/RuleEngine';
+import { RULES } from '../rules/rules';
 
 /**
  * Game — 게임플레이 상태머신 + 시스템 오케스트레이션.
@@ -19,6 +21,7 @@ export class Game {
   private readonly input: InputController;
   private readonly player: Player;
   private readonly spawner: Spawner;
+  private readonly engine: RuleEngine;
 
   constructor(scene: THREE.Scene) {
     this.input = new InputController();
@@ -30,6 +33,9 @@ export class Game {
 
     this.spawner = new Spawner(scene);
 
+    this.engine = new RuleEngine(RULES);
+    this.engine.activateUpTo(1); // 라운드1 = 룰1. T12 가 라운드에 따라 누적 활성.
+
     window.addEventListener('keydown', this.onKeyDown);
   }
 
@@ -39,7 +45,7 @@ export class Game {
     this.player.update(dt, this.input.direction);
     this.spawner.update(dt);
 
-    if (checkCollision(this.player, this.spawner.activeWalls)) {
+    if (checkCollision(this.player, this.spawner.activeWalls, this.engine)) {
       this.gameOver();
     }
   }

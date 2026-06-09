@@ -93,4 +93,4 @@ function render(): void {
 const loop = new GameLoop(update, render);
 loop.start();
 
-console.info(`[RuleAdd] T7 ready — collision + game over/restart, three.js r${THREE.REVISION}`);
+console.info(`[RuleAdd] T8 ready — rule engine foundation, three.js r${THREE.REVISION}`);
