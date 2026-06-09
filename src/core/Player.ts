@@ -62,6 +62,11 @@ export class Player {
     return this.object.position.x;
   }
 
+  /** 재시작 — 시작 셀 X 로 복귀. */
+  reset(): void {
+    this.object.position.x = cellToX(START_CELL);
+  }
+
   /**
    * 한 프레임 이동. dir = -1(좌)/0/+1(우), dt = 초.
    * 레인 경계 clamp.

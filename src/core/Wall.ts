@@ -11,7 +11,7 @@ import { CELL_COUNT, CELL_SIZE, cellToX, LANE_Y } from './lane';
  * 패턴(어느 칸이 막혔는지)은 생성자 인자로 받는다 — 생성 규칙은 Spawner/T6.
  */
 
-const WALL_THICKNESS = 0.6; // Z 두께 (면은 정사각, 두께만 얕게)
+export const WALL_THICKNESS = 0.6; // Z 두께 (면은 정사각, 두께만 얕게). 충돌 Z 판정에도 사용.
 const BLOCK_COLOR = 0xffffff;
 const EDGE_COLOR = 0x222222;
 

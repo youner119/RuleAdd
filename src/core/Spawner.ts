@@ -26,6 +26,14 @@ export class Spawner {
     return this.walls;
   }
 
+  /** 재시작 — 모든 벽 제거 + 스폰 상태 초기화. */
+  reset(): void {
+    for (const w of this.walls) this.scene.remove(w.object);
+    this.walls.length = 0;
+    this.distSinceSpawn = WALL_SPACING; // 다음 프레임 즉시 첫 벽
+    this.lastSig = '';
+  }
+
   update(dt: number): void {
     const dz = WALL_SPEED * dt;
 

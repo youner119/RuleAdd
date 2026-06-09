@@ -1,20 +1,16 @@
 import * as THREE from 'three';
 import { GameLoop } from './core/GameLoop';
-import { createLaneGroup, PLAYER_Z } from './core/lane';
-import { Player } from './core/Player';
-import { InputController } from './core/InputController';
-import { Spawner } from './core/Spawner';
+import { PLAYER_Z } from './core/lane';
+import { Game } from './core/Game';
 
 /**
- * 무대 + 배우: 흰 배경, 3인칭 뒤+위 perspective 카메라, 조명(+그림자),
- * 4×1 레인, 흰 구(Player). (AC1)
+ * main — 렌더 인프라(renderer/camera/scene/lights/loop)만 담당.
+ * 게임플레이(레인·구·벽·충돌·상태)는 Game 이 소유한다.
  *
- * 좌표 규약 (이후 전 시스템의 기준):
+ * 좌표 규약 (전 시스템 기준):
  *   X = 레인 좌우 (4×1: 4칸이 X축에 나열)
  *   Z = 깊이. 벽은 -Z 먼 곳에서 +Z(플레이어/카메라 쪽)로 접근
  *   Y = 높이. 4×4 확장 시 행이 Y축에 쌓임
- *
- * 이동(a/d)은 T4, 벽은 T5.
  */
 
 /** 카메라 배치 — 튜닝하기 쉽게 한곳에 모음. */
@@ -72,17 +68,8 @@ dir.shadow.camera.bottom = -12;
 dir.shadow.bias = -0.0005;
 scene.add(dir);
 
-// --- Stage geometry: 4×1 레인 + 흰 구 ---
-scene.add(createLaneGroup());
-
-const player = new Player();
-scene.add(player.object);
-
-// --- Input ---
-const input = new InputController();
-
-// --- Spawner (벽 세트) ---
-const spawner = new Spawner(scene);
+// --- Game (게임플레이: 레인·구·벽·충돌·상태) ---
+const game = new Game(scene);
 
 // --- Resize ---
 function onResize(): void {
@@ -97,9 +84,7 @@ onResize();
 
 // --- Game loop ---
 function update(dt: number): void {
-  player.update(dt, input.direction);
-  spawner.update(dt);
-  // T7(Collision) 등 시스템 update 가 여기 추가된다.
+  game.update(dt);
 }
 function render(): void {
   renderer.render(scene, camera);
@@ -108,4 +93,4 @@ function render(): void {
 const loop = new GameLoop(update, render);
 loop.start();
 
-console.info(`[RuleAdd] T6 ready — wall patterns (1 gap), three.js r${THREE.REVISION}`);
+console.info(`[RuleAdd] T7 ready — collision + game over/restart, three.js r${THREE.REVISION}`);
