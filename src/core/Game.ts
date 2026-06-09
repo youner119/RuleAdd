@@ -4,6 +4,7 @@ import { InputController } from './InputController';
 import { createLaneGroup } from './lane';
 import { Player } from './Player';
 import { Spawner } from './Spawner';
+import { ScoreSystem } from './ScoreSystem';
 import { RuleEngine } from '../rules/RuleEngine';
 import { RULES, ensureActiveRuleColors, resetRuleColors } from '../rules/rules';
 
@@ -29,6 +30,7 @@ export class Game {
   private readonly player: Player;
   private readonly spawner: Spawner;
   private readonly engine: RuleEngine;
+  private readonly score = new ScoreSystem();
   private round = DEBUG_START_ROUND;
   private setsPassed = 0;
 
@@ -64,15 +66,23 @@ export class Game {
     }
   }
 
-  /** 세트 통과 누적 → 라운드 진행. */
+  /** 세트 통과 누적 → 점수 가산 + 라운드 진행. */
   private addPassedSets(n: number): void {
+    for (let i = 0; i < n; i++) this.score.addSet(this.round); // 통과 시점 라운드로 가산
     this.setsPassed += n;
     const target = DEBUG_START_ROUND + Math.floor(this.setsPassed / SETS_PER_ROUND);
     if (target > this.round) {
       this.round = target;
       this.applyRound();
-      console.info(`[RuleAdd] Round ${this.round} — 룰 ${Math.min(this.round, RULES.length)} 활성`);
+      console.info(
+        `[RuleAdd] Round ${this.round} — 룰 ${Math.min(this.round, RULES.length)} 활성 · 점수 ${this.score.value}`,
+      );
     }
+  }
+
+  /** 현재 점수(HUD T16 용). */
+  get scoreValue(): number {
+    return this.score.value;
   }
 
   /** 현재 라운드에 맞춰 룰 누적 활성 + 새 색 룰 색 배정. */
@@ -83,12 +93,13 @@ export class Game {
 
   private gameOver(): void {
     this.status = 'gameover';
-    // T13(최종 점수) / T16(게임오버 UI 오버레이) 에서 표시 보강.
-    console.info('[RuleAdd] GAME OVER — press R to restart');
+    // 화면 오버레이는 T16. 여기선 최종 점수 로그.
+    console.info(`[RuleAdd] GAME OVER — 최종 점수 ${this.score.value} — press R to restart`);
   }
 
   reset(): void {
     resetRuleColors(); // 색 초기화 → 라운드 진행으로 다시 배정
+    this.score.reset();
     this.round = DEBUG_START_ROUND;
     this.setsPassed = 0;
     this.applyRound();
