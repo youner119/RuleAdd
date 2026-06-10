@@ -151,12 +151,23 @@ function assignOnce(
           })
         : [];
 
-    const pool: ({ t: 'm'; e: Dir } | { t: 'x'; d: Dir })[] = [
-      ...validMove.map((e) => ({ t: 'm' as const, e })),
-      ...validExp.map((d) => ({ t: 'x' as const, d })),
-    ];
-    if (pool.length === 0) return null; // 막힘 → 재시도
-    const pick = randPick(pool);
+    // 카테고리(정지/이동/확장) 단위로 먼저 균등 선택 → 방향 수가 많아도(4×4)
+    // "정지" 비중이 줄지 않는다: 정지50·이동50, 확장 가능 시 각 33.
+    const stayOk = validMove.some((e) => dirEq(e, DIR_NONE));
+    const moveOpts = validMove.filter((e) => !dirEq(e, DIR_NONE));
+    const cats: ('stay' | 'move' | 'expand')[] = [];
+    if (stayOk) cats.push('stay');
+    if (moveOpts.length > 0) cats.push('move');
+    if (validExp.length > 0) cats.push('expand');
+    if (cats.length === 0) return null; // 막힘 → 재시도
+
+    const cat = randPick(cats);
+    const pick: { t: 'm'; e: Dir } | { t: 'x'; d: Dir } =
+      cat === 'expand'
+        ? { t: 'x', d: randPick(validExp) }
+        : cat === 'move'
+          ? { t: 'm', e: randPick(moveOpts) }
+          : { t: 'm', e: DIR_NONE };
 
     if (pick.t === 'm') {
       occupied.add(stepCell(cell, pick.e, rows));
