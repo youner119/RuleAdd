@@ -3,8 +3,9 @@ import type { BlockBehavior, Rule, RuleBlock } from './RuleEngine';
 /**
  * 룰 정의 (데이터). 추가 순서 = 우선순위(뒤가 우선).
  *
- * 룰3/4/5 의 "특정 색"은 고정이 아니라 COLOR_POOL 에서 매 런 무작위로 뽑힌다
- * (randomizeRuleColors). 효과는 고정(반대/정지/통과), 색만 런마다 달라진다.
+ * 룰3/4 의 "특정 색"은 고정이 아니라 COLOR_POOL 에서 매 런 무작위로 뽑힌다
+ * (ensureActiveRuleColors). 효과는 고정(정지/통과), 색만 런마다 달라진다.
+ * "화살표 반대로 이동"(구 룰3)은 비활성 — DISABLED_RULES 참조(기능 보존).
  */
 
 /** 색 풀 — 흰 배경에 또렷한 12색(CSS hex). 매 런 3색이 룰3/4/5 로 뽑힘. */
@@ -60,38 +61,45 @@ function makeColorRule(
   };
 }
 
-/** 룰3 — 이 색 블록은 화살표 반대 방향으로 이동. */
-const rule3 = makeColorRule(3, '이 색은 화살표 반대로 이동', (behavior, block) => ({
-  ...behavior,
-  shiftDir: -block.arrowDir,
-}));
-
-/** 룰4 — 이 색 블록은 화살표가 있어도 움직이지 않는다. */
-const rule4 = makeColorRule(4, '이 색은 움직이지 않는다', (behavior) => ({
+/** 룰3 — 이 색 블록은 화살표가 있어도 움직이지 않는다(정지). */
+const rule3 = makeColorRule(3, '이 색은 움직이지 않는다', (behavior) => ({
   ...behavior,
   shiftDir: 0,
 }));
 
-/** 룰5 — 이 색 블록은 구와 충돌하지 않는다(통과). */
-const rule5 = makeColorRule(5, '이 색은 통과할 수 있다', (behavior) => ({
+/** 룰4 — 이 색 블록은 구와 충돌하지 않는다(통과). */
+const rule4 = makeColorRule(4, '이 색은 통과할 수 있다', (behavior) => ({
   ...behavior,
   collidable: false,
 }));
 
 /**
- * 룰6 — 확장: ⓧ 마커(동그라미+X, 확장 방향 분면 검정) 벽이 쉬프트 타이밍에
+ * 룰5 — 확장: ⓧ 마커(동그라미+X, 확장 방향 분면 검정) 벽이 쉬프트 타이밍에
  * 그 방향 인접 칸으로 자라난다(스폰 땐 빈 칸처럼 보이는 함정).
  * 행동(이동/충돌)은 바꾸지 않는다 — 확장 구성은 생성기(setgen)가 담당하고,
- * 이 룰은 활성화(라운드6)·HUD 표시용.
+ * 이 룰은 활성화(라운드5)·HUD 표시용.
  */
-const rule6: Rule = {
-  id: 6,
+const rule5: Rule = {
+  id: 5,
   label: 'ⓧ 표시 벽은 칠해진 방향으로 늘어난다',
   appliesTo: () => false,
   modify: (behavior) => behavior,
 };
 
-export const RULES: readonly Rule[] = [rule1, rule2, rule3, rule4, rule5, rule6];
+export const RULES: readonly Rule[] = [rule1, rule2, rule3, rule4, rule5];
+
+/**
+ * 비활성화된 룰(기능 보존) — "이 색은 화살표 반대로 이동"(구 룰3).
+ * RULES 에서 제외되어 게임에 추가되지 않는다(라운드가 올라도 활성화 안 됨).
+ * 효과·생성기(setgen 의 effShift/displayReps num2 경로)·Spawner 매핑 코드는 그대로
+ * 남아 있어, 재활성화하려면 이 룰을 RULES 배열에 다시 넣고 번호(id)를 재배치하면 된다.
+ */
+const ruleOpposite = makeColorRule(6, '이 색은 화살표 반대로 이동', (behavior, block) => ({
+  ...behavior,
+  shiftDir: -block.arrowDir,
+}));
+
+export const DISABLED_RULES: readonly Rule[] = [ruleOpposite];
 
 /** 모든 색 룰의 배정 색을 비운다(재시작 시). */
 export function resetRuleColors(): void {

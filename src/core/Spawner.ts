@@ -56,7 +56,7 @@ export class Spawner {
   update(dt: number, speedMul = 1): number {
     const dz = this.wallSpeed * speedMul * dt;
 
-    // 이동 + 룰2 쉬프트/룰6 확장 트리거 (같은 타이밍)
+    // 이동 + 룰2 쉬프트/룰5 확장 트리거 (같은 타이밍)
     for (const w of this.walls) {
       w.z += dz;
       if (!w.shifted && w.z >= SHIFT_TRIGGER_Z) {
@@ -129,7 +129,7 @@ export class Spawner {
   }
 
   /**
-   * 룰6 확장 — 쉬프트와 같은 타이밍에, 확장벽이 마커 방향의 인접 칸으로 자라난다.
+   * 룰5 확장 — 쉬프트와 같은 타이밍에, 확장벽이 마커 방향의 인접 칸으로 자라난다.
    * 그 칸은 스폰 때 빈 칸으로 보였던 함정 칸(생성기가 겹침0·정답을 이미 보장).
    */
   private expandWall(wall: Wall): void {
@@ -162,18 +162,18 @@ export class Spawner {
       passableCount: PASSABLE_COUNT,
       active: {
         move: this.engine.isActive(2),
-        opposite: this.engine.isActive(3),
-        stop: this.engine.isActive(4),
-        passable: this.engine.isActive(5),
-        expand: this.engine.isActive(6),
+        opposite: false, // "반대 방향" 룰 비활성화 — 기능 코드는 setgen/rules 에 보존
+        stop: this.engine.isActive(3),
+        passable: this.engine.isActive(4),
+        expand: this.engine.isActive(5),
       },
     });
   }
 
   /**
    * 생성기 결과를 벽에 적용 — 행동을 기존 색/화살표/확장마커로 매핑.
-   *   move: num1 그대로(색없음)·num2 반대(룰3색)·num3 정지(룰4색)·num4 통과(룰5색) + 화살표
-   *   expand(룰6): 확장 마커(먹는 방향 분면 검정). eaten: 흡수됨 — 제자리 흰 벽(표시 없음).
+   *   move: num1 그대로(색없음)·num3 정지(룰3색)·num4 통과(룰4색) + 화살표. num2(반대)=비활성.
+   *   expand(룰5): 확장 마커(먹는 방향 분면 검정). eaten: 흡수됨 — 제자리 흰 벽(표시 없음).
    * setgen 의 effShift 가 엔진 effective 와 일치하므로 쉬프트 시 겹침0 이 그대로 성립.
    */
   private applyPlan(wall: Wall, plan: SetPlan): void {
@@ -191,10 +191,10 @@ export class Spawner {
     }
   }
 
-  /** 행동 num → 룰 색. num1=색 없음, num2→룰3 / num3→룰4 / num4→룰5 의 런 배정색. */
+  /** 행동 num → 룰 색. num1=색 없음, num3→룰3(정지) / num4→룰4(통과) 의 런 배정색. num2(반대)=비활성. */
   private colorForNum(num: Num): string | null {
     if (num === 1) return null;
-    const rule = this.engine.activeRules.find((r) => r.id === num + 1);
+    const rule = this.engine.activeRules.find((r) => r.id === num);
     return rule?.targetColor ?? null;
   }
 }

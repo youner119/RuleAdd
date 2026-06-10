@@ -5,8 +5,8 @@ import { wrapCell } from './pattern';
  *
  * 기존의 "무작위 색칠 + 화살표 rejection sampling"(Spawner.decorate)을 대체하는
  * 통합 생성기. 행동은 내부적으로 num/확장으로 표현하고, 색/화살표/마커 매핑은 Spawner:
- *   num1 그대로(룰2) · num2 반대(룰3) · num3 정지(룰4) · num4 통과(룰5, 그대로 이동)
- *   확장(룰6) = 인접 "벽"을 잡아먹음(eaten). 잡아먹는 벽·먹힌 벽 모두 제자리 유지.
+ *   num1 그대로(룰2) · num3 정지(룰3) · num4 통과(룰4, 그대로 이동) · num2 반대=비활성
+ *   확장(룰5) = 인접 "벽"을 잡아먹음(eaten). 잡아먹는 벽·먹힌 벽 모두 제자리 유지.
  *
  * effShift(num, 화살표)는 RuleEngine 의 effective 와 정확히 일치 → 생성기가 보장한
  * 겹침0 이 게임 실제 쉬프트에서도 그대로 성립. 확장/먹힘 벽은 화살표 없음 → 제자리.
@@ -30,10 +30,10 @@ export interface SetPlan {
 /** 라운드(누적 룰)로부터 도출되는 활성 행동. */
 export interface ActiveBehaviors {
   move: boolean; // 룰2 — 화살표 이동
-  opposite: boolean; // 룰3 — 반대 방향
+  opposite: boolean; // 반대 방향(현재 비활성 — Spawner 가 항상 false 주입; 기능 코드는 유지)
   stop: boolean; // 룰4 — 정지
-  passable: boolean; // 룰5 — 통과
-  expand: boolean; // 룰6 — 확장(잡아먹기)
+  passable: boolean; // 룰4 — 통과
+  expand: boolean; // 룰5 — 확장(잡아먹기)
 }
 
 export interface SetGenOptions {

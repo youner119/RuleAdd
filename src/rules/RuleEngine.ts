@@ -19,9 +19,9 @@ export interface RuleBlock {
 
 /** 룰이 결정하는 블록의 행동. */
 export interface BlockBehavior {
-  /** 룰5: 특정 색 블록은 구와 충돌하지 않음. */
+  /** 룰4: 특정 색 블록은 구와 충돌하지 않음. */
   collidable: boolean;
-  /** 룰2/3/4: 근접 시 블록 쉬프트 방향 (-1/0/+1). */
+  /** 룰2/3: 근접 시 블록 쉬프트 방향 (-1/0/+1). */
   shiftDir: number;
 }
 

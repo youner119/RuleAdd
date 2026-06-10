@@ -70,7 +70,7 @@ const arrowMat = new THREE.MeshStandardMaterial({
 });
 const arrowEdgeMat = new THREE.LineBasicMaterial({ color: EDGE_COLOR });
 
-// --- 확장 마커(룰6: 동그라미 + X + 먹는 방향 분면 검정) 공유 리소스 ---
+// --- 확장 마커(룰5: 동그라미 + X + 먹는 방향 분면 검정) 공유 리소스 ---
 const MARK_R = 0.32;
 const markDiscGeo = new THREE.CircleGeometry(MARK_R, 48); // 바탕 흰 원판
 const markRingGeo = new THREE.RingGeometry(MARK_R - 0.03, MARK_R, 48); // 동그라미(테두리 링)
@@ -122,7 +122,7 @@ export interface Block {
   arrowDir: number;
   /** 룰3/4/5 색 (없으면 null). */
   color: string | null;
-  /** 룰6 확장: 잡아먹는 방향들(-1/+1). 확장벽이 아니면 없음. */
+  /** 룰5 확장: 잡아먹는 방향들(-1/+1). 확장벽이 아니면 없음. */
   expDirs?: number[];
   /** 이 블록의 메시 그룹(body+edges, +arrow/marker). */
   readonly group: THREE.Group;
@@ -130,7 +130,7 @@ export interface Block {
   readonly body: THREE.Mesh;
 }
 
-/** 확장(룰6) 성장 애니메이션 길이(초). */
+/** 확장(룰5) 성장 애니메이션 길이(초). */
 const GROW_SEC = 0.25;
 
 export class Wall {
@@ -142,7 +142,7 @@ export class Wall {
   shifted = false;
   /** 이 세트가 이미 목숨을 1 깎았는지 — 세트당 1회만 차감. */
   lifeTaken = false;
-  /** 성장 중인 확장 블록(룰6) — update 에서 스케일 애니메이션. */
+  /** 성장 중인 확장 블록(룰5) — update 에서 스케일 애니메이션. */
   private readonly growing: { block: Block; dir: number; t: number }[] = [];
 
   constructor(blocked: readonly boolean[]) {
@@ -173,7 +173,7 @@ export class Wall {
     block.group.add(arrow);
   }
 
-  /** 룰6: 블록 중앙(앞면)에 확장 마커 — 동그라미 + X + 먹는 방향 분면 전체 검정. */
+  /** 룰5: 블록 중앙(앞면)에 확장 마커 — 동그라미 + X + 먹는 방향 분면 전체 검정. */
   showExpansion(block: Block, dirs: number[]): void {
     block.expDirs = dirs;
     const marker = new THREE.Group();
@@ -208,7 +208,7 @@ export class Wall {
   }
 
   /**
-   * 룰6: 확장벽이 인접 칸으로 자라난다 — 쉬프트 트리거 시점에 호출.
+   * 룰5: 확장벽이 인접 칸으로 자라난다 — 쉬프트 트리거 시점에 호출.
    * 스폰 때는 빈 칸으로 보이다가, 이 시점에 확장벽 쪽 모서리에서 바깥으로
    * 늘어나는 애니메이션과 함께 벽 블록이 생긴다(0 2 0 0 → 0 2 2 0 느낌).
    * fromDir = 확장 방향(확장벽 → 이 칸, -1/+1).
