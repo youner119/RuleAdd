@@ -78,7 +78,20 @@ const rule5 = makeColorRule(5, '이 색은 통과할 수 있다', (behavior) => 
   collidable: false,
 }));
 
-export const RULES: readonly Rule[] = [rule1, rule2, rule3, rule4, rule5];
+/**
+ * 룰6 — 확장: ⓧ 마커(동그라미+X, 확장 방향 분면 검정) 벽이 쉬프트 타이밍에
+ * 그 방향 인접 칸으로 자라난다(스폰 땐 빈 칸처럼 보이는 함정).
+ * 행동(이동/충돌)은 바꾸지 않는다 — 확장 구성은 생성기(setgen)가 담당하고,
+ * 이 룰은 활성화(라운드6)·HUD 표시용.
+ */
+const rule6: Rule = {
+  id: 6,
+  label: 'ⓧ 표시 벽은 칠해진 방향으로 늘어난다',
+  appliesTo: () => false,
+  modify: (behavior) => behavior,
+};
+
+export const RULES: readonly Rule[] = [rule1, rule2, rule3, rule4, rule5, rule6];
 
 /** 모든 색 룰의 배정 색을 비운다(재시작 시). */
 export function resetRuleColors(): void {

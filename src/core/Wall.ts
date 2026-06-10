@@ -70,6 +70,47 @@ const arrowMat = new THREE.MeshStandardMaterial({
 });
 const arrowEdgeMat = new THREE.LineBasicMaterial({ color: EDGE_COLOR });
 
+// --- 확장 마커(룰6: 동그라미 + X + 먹는 방향 분면 검정) 공유 리소스 ---
+const MARK_R = 0.32;
+const markDiscGeo = new THREE.CircleGeometry(MARK_R, 48); // 바탕 흰 원판
+const markRingGeo = new THREE.RingGeometry(MARK_R - 0.03, MARK_R, 48); // 동그라미(테두리 링)
+const markWhiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+const markBlackMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
+const markXGeo = (() => {
+  const d = MARK_R * Math.SQRT1_2; // 대각선 끝(±45°)
+  const g = new THREE.BufferGeometry();
+  g.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute([-d, -d, 0, d, d, 0, -d, d, 0, d, -d, 0], 3),
+  );
+  return g;
+})();
+const markLineMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+const wedgeGeos = new Map<number, THREE.ShapeGeometry>(); // centerAngle → 90° 부채꼴
+function wedgeGeoFor(centerAngle: number): THREE.ShapeGeometry {
+  let g = wedgeGeos.get(centerAngle);
+  if (!g) {
+    // 중심(0,0) → 호 시작점을 lineTo 로 먼저 연결해야 진짜 부채꼴이 된다.
+    // (absarc 를 첫 커브로 쓰면 moveTo(0,0)이 무시되어 활꼴만 남는 three.js 동작 주의)
+    const a0 = centerAngle - Math.PI / 4;
+    const a1 = centerAngle + Math.PI / 4;
+    const s = new THREE.Shape();
+    s.moveTo(0, 0);
+    s.lineTo(Math.cos(a0) * MARK_R, Math.sin(a0) * MARK_R);
+    s.absarc(0, 0, MARK_R, a0, a1, false);
+    s.lineTo(0, 0);
+    g = new THREE.ShapeGeometry(s);
+    wedgeGeos.set(centerAngle, g);
+  }
+  return g;
+}
+/** 확장 방향 → 마커 분면 중심각. 우(+1)=0, 좌(-1)=π. (4×4 확장 시 상/하 추가) */
+function expAngle(dir: number): number | undefined {
+  if (dir === 1) return 0;
+  if (dir === -1) return Math.PI;
+  return undefined;
+}
+
 /**
  * Block — 세트 안의 개별 벽(막힌 칸 하나).
  * color/arrowDir 는 RuleWall 을 만족(엔진이 블록별 행동을 resolve).
@@ -81,11 +122,16 @@ export interface Block {
   arrowDir: number;
   /** 룰3/4/5 색 (없으면 null). */
   color: string | null;
-  /** 이 블록의 메시 그룹(body+edges, +arrow). */
+  /** 룰6 확장: 잡아먹는 방향들(-1/+1). 확장벽이 아니면 없음. */
+  expDirs?: number[];
+  /** 이 블록의 메시 그룹(body+edges, +arrow/marker). */
   readonly group: THREE.Group;
   /** body 메시 — 색칠 시 머티리얼 교체용. */
   readonly body: THREE.Mesh;
 }
+
+/** 확장(룰6) 성장 애니메이션 길이(초). */
+const GROW_SEC = 0.25;
 
 export class Wall {
   /** 씬에 추가하는 루트. */
@@ -96,6 +142,8 @@ export class Wall {
   shifted = false;
   /** 이 세트가 이미 목숨을 1 깎았는지 — 세트당 1회만 차감. */
   lifeTaken = false;
+  /** 성장 중인 확장 블록(룰6) — update 에서 스케일 애니메이션. */
+  private readonly growing: { block: Block; dir: number; t: number }[] = [];
 
   constructor(blocked: readonly boolean[]) {
     this.object = new THREE.Group();
@@ -125,6 +173,28 @@ export class Wall {
     block.group.add(arrow);
   }
 
+  /** 룰6: 블록 중앙(앞면)에 확장 마커 — 동그라미 + X + 먹는 방향 분면 전체 검정. */
+  showExpansion(block: Block, dirs: number[]): void {
+    block.expDirs = dirs;
+    const marker = new THREE.Group();
+    marker.add(new THREE.Mesh(markDiscGeo, markWhiteMat)); // 바탕 흰 원판 (z 0)
+    for (const d of dirs) {
+      const a = expAngle(d);
+      if (a === undefined) continue;
+      const wedge = new THREE.Mesh(wedgeGeoFor(a), markBlackMat); // 분면 전체 검정칠
+      wedge.position.z = 0.002; // 원판 위
+      marker.add(wedge);
+    }
+    const ring = new THREE.Mesh(markRingGeo, markBlackMat); // 동그라미
+    ring.position.z = 0.004;
+    marker.add(ring);
+    const x = new THREE.LineSegments(markXGeo, markLineMat); // X
+    x.position.z = 0.006;
+    marker.add(x);
+    marker.position.set(0, 0, WALL_THICKNESS / 2 + 0.05); // 블록 로컬: 중앙·앞면
+    block.group.add(marker);
+  }
+
   /** 룰3/4/5: 블록 색칠(body 머티리얼 교체). 테두리는 검정 유지. */
   setColor(block: Block, color: string): void {
     block.color = color;
@@ -135,6 +205,40 @@ export class Wall {
   moveBlock(block: Block, newCell: number): void {
     block.cell = newCell;
     block.group.position.x = cellToX(newCell);
+  }
+
+  /**
+   * 룰6: 확장벽이 인접 칸으로 자라난다 — 쉬프트 트리거 시점에 호출.
+   * 스폰 때는 빈 칸으로 보이다가, 이 시점에 확장벽 쪽 모서리에서 바깥으로
+   * 늘어나는 애니메이션과 함께 벽 블록이 생긴다(0 2 0 0 → 0 2 2 0 느낌).
+   * fromDir = 확장 방향(확장벽 → 이 칸, -1/+1).
+   */
+  growBlock(cell: number, fromDir: number): Block {
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(cellGeo, bodyMat);
+    body.castShadow = true;
+    group.add(body, new THREE.LineSegments(edgeGeo, edgeMat));
+    // 시작: 확장벽과 맞닿은 모서리에 납작하게 붙음.
+    group.position.set(cellToX(cell) - fromDir * (CELL_SIZE / 2), LANE_Y + CELL_SIZE / 2, 0);
+    group.scale.x = 0.001;
+    this.object.add(group);
+    const block: Block = { cell, arrowDir: 0, color: null, group, body };
+    this.blocks.push(block); // 충돌 대상 등록(트리거 시점부터 막힘)
+    this.growing.push({ block, dir: fromDir, t: 0 });
+    return block;
+  }
+
+  /** 성장 애니메이션 진행 — 매 프레임 호출(Spawner). */
+  update(dt: number): void {
+    for (let i = this.growing.length - 1; i >= 0; i--) {
+      const g = this.growing[i]!;
+      g.t += dt / GROW_SEC;
+      const s = Math.min(1, g.t);
+      g.block.group.scale.x = Math.max(0.001, s);
+      // 확장벽 쪽 모서리를 고정한 채 바깥으로 자란다.
+      g.block.group.position.x = cellToX(g.block.cell) - g.dir * ((1 - s) * (CELL_SIZE / 2));
+      if (s >= 1) this.growing.splice(i, 1);
+    }
   }
 
   get z(): number {

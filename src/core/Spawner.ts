@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CELL_COUNT, LANE_NEAR_Z, PLAYER_Z, SPAWN_Z } from './lane';
-import { generateWallPattern, wrapCell } from './pattern';
+import { wrapCell } from './pattern';
+import { generateSet, type Num, type SetPlan } from './setgen';
 import { Wall } from './Wall';
 import type { RuleEngine } from '../rules/RuleEngine';
 
@@ -17,7 +18,7 @@ const WALL_SPACING = 28; // 연속 벽(세트) 간 Z 거리 → 스폰 주기 = 
 const DEFAULT_INTERVAL_SEC = 4; // 세트 도착 간격 기본값(난이도 미지정 시 = 쉬움 속도)
 const DESPAWN_Z = LANE_NEAR_Z + 2; // 플레이어를 충분히 지나치면 제거
 const SHIFT_TRIGGER_Z = PLAYER_Z - 4; // 플레이어 4유닛 앞 → 코앞에서 이동
-const COLOR_RATE = 0.5; // 각 블록이 활성 룰 색을 받을 확률 (룰3/4/5)
+const PASSABLE_COUNT = 1; // 세트당 안전칸(구멍 + 통과벽) 수 — v1 gap 1칸과 동일
 
 export class Spawner {
   private readonly walls: Wall[] = [];
@@ -55,13 +56,15 @@ export class Spawner {
   update(dt: number, speedMul = 1): number {
     const dz = this.wallSpeed * speedMul * dt;
 
-    // 이동 + 룰2 쉬프트 트리거
+    // 이동 + 룰2 쉬프트/룰6 확장 트리거 (같은 타이밍)
     for (const w of this.walls) {
       w.z += dz;
       if (!w.shifted && w.z >= SHIFT_TRIGGER_Z) {
         this.shiftWall(w);
+        this.expandWall(w);
         w.shifted = true; // 1회만
       }
+      w.update(dt); // 확장 성장 애니메이션
     }
 
     // despawn (플레이어 지나침) = 세트 통과
@@ -125,63 +128,98 @@ export class Spawner {
     }
   }
 
-  private spawn(): void {
-    // 직전과 동일한 패턴이면 몇 번 다시 굴려 단조로움 방지.
-    let pattern = generateWallPattern();
-    for (let t = 0; t < 3 && sig(pattern) === this.lastSig; t++) {
-      pattern = generateWallPattern();
+  /**
+   * 룰6 확장 — 쉬프트와 같은 타이밍에, 확장벽이 마커 방향의 인접 칸으로 자라난다.
+   * 그 칸은 스폰 때 빈 칸으로 보였던 함정 칸(생성기가 겹침0·정답을 이미 보장).
+   */
+  private expandWall(wall: Wall): void {
+    for (const b of [...wall.blocks]) {
+      if (!b.expDirs) continue;
+      for (const d of b.expDirs) {
+        wall.growBlock(wrapCell(b.cell + d, CELL_COUNT), d);
+      }
     }
-    this.lastSig = sig(pattern);
+  }
 
-    const wall = new Wall(pattern);
+  private spawn(): void {
+    // 새 생성기(setgen)로 세트 구성. 직전과 동일하면 몇 번 다시 굴려 단조로움 방지.
+    let plan = this.makePlan();
+    for (let t = 0; t < 3 && planSig(plan) === this.lastSig; t++) plan = this.makePlan();
+    this.lastSig = planSig(plan);
+
+    const wall = new Wall(blockedFromPlan(plan));
     wall.z = SPAWN_Z;
-
-    this.decorate(wall);
+    this.applyPlan(wall, plan);
 
     this.scene.add(wall.object);
     this.walls.push(wall);
   }
 
+  /** 활성 룰(라운드)에서 생성기 파라미터를 도출해 세트를 생성. */
+  private makePlan(): SetPlan {
+    return generateSet({
+      cellCount: CELL_COUNT,
+      passableCount: PASSABLE_COUNT,
+      active: {
+        move: this.engine.isActive(2),
+        opposite: this.engine.isActive(3),
+        stop: this.engine.isActive(4),
+        passable: this.engine.isActive(5),
+        expand: this.engine.isActive(6),
+      },
+    });
+  }
+
   /**
-   * 세트 구성 — 색(룰3/4/5) + 화살표(룰2) 부여.
-   * 색을 먼저 칠하고, 엔진이 계산한 실제 이동(반대/정지 반영) 기준으로 겹침0 +
-   * 정답이 되도록 화살표를 구성한다(rejection sampling). 실패 시 화살표 0.
+   * 생성기 결과를 벽에 적용 — 행동을 기존 색/화살표/확장마커로 매핑.
+   *   move: num1 그대로(색없음)·num2 반대(룰3색)·num3 정지(룰4색)·num4 통과(룰5색) + 화살표
+   *   expand(룰6): 확장 마커(먹는 방향 분면 검정). eaten: 흡수됨 — 제자리 흰 벽(표시 없음).
+   * setgen 의 effShift 가 엔진 effective 와 일치하므로 쉬프트 시 겹침0 이 그대로 성립.
    */
-  private decorate(wall: Wall): void {
-    const blocks = wall.blocks;
-
-    // 1) 색칠 — 활성 색 룰의 targetColor 중 무작위(확률 COLOR_RATE).
-    const activeColors = this.engine.activeRules
-      .map((r) => r.targetColor)
-      .filter((c): c is string => typeof c === 'string');
-    if (activeColors.length > 0) {
-      for (const b of blocks) {
-        if (Math.random() < COLOR_RATE) {
-          wall.setColor(b, activeColors[Math.floor(Math.random() * activeColors.length)] as string);
-        }
+  private applyPlan(wall: Wall, plan: SetPlan): void {
+    for (const w of plan.walls) {
+      const block = wall.blocks.find((b) => b.cell === w.cell);
+      if (!block) continue;
+      if (w.kind === 'move') {
+        const color = this.colorForNum(w.num);
+        if (color) wall.setColor(block, color);
+        if (w.arrowDir !== 0) wall.showArrow(block, w.arrowDir);
+      } else if (w.kind === 'expand') {
+        wall.showExpansion(block, w.dirs);
       }
+      // 'eaten' — 표시 없음(제자리 유지, 화살표 0 → 쉬프트 안 함).
     }
+  }
 
-    // 2) 화살표 — 룰2 활성 시, 실제 이동 기준 겹침0 이 되는 조합을 찾는다.
-    if (!this.engine.isActive(2)) return;
-    for (let t = 0; t < 24; t++) {
-      const dirs = blocks.map(() => Math.floor(Math.random() * 3) - 1); // -1/0/+1
-      blocks.forEach((b, i) => (b.arrowDir = dirs[i] as number)); // effective 계산용
-      const finals = blocks.map((b) =>
-        wrapCell(b.cell + this.engine.resolveBehavior(b).shiftDir, CELL_COUNT),
-      );
-      if (new Set(finals).size === finals.length) {
-        blocks.forEach((b, i) => {
-          if ((dirs[i] as number) !== 0) wall.showArrow(b, dirs[i] as number);
-        });
-        return;
-      }
-    }
-    blocks.forEach((b) => (b.arrowDir = 0)); // 실패 시 정지
+  /** 행동 num → 룰 색. num1=색 없음, num2→룰3 / num3→룰4 / num4→룰5 의 런 배정색. */
+  private colorForNum(num: Num): string | null {
+    if (num === 1) return null;
+    const rule = this.engine.activeRules.find((r) => r.id === num + 1);
+    return rule?.targetColor ?? null;
   }
 }
 
-/** 패턴 시그니처 ("1011" 등) — 연속 동일 비교용. */
-function sig(blocked: readonly boolean[]): string {
-  return blocked.map((b) => (b ? '1' : '0')).join('');
+/**
+ * plan → blocked[] (스폰 시점 모습). gap 과 eaten(먹힌 칸) 둘 다 빈 칸으로 —
+ * 먹힌 칸은 구멍처럼 보이다가 쉬프트 트리거에서 확장벽이 자라며 막힌다(함정).
+ */
+function blockedFromPlan(plan: SetPlan): boolean[] {
+  const blocked = new Array<boolean>(plan.cellCount).fill(true);
+  for (const g of plan.gaps) blocked[g] = false;
+  for (const w of plan.walls) if (w.kind === 'eaten') blocked[w.cell] = false;
+  return blocked;
+}
+
+/** plan 시그니처 — 연속 동일 회피용 (칸별 행동, gap='g'). */
+function planSig(plan: SetPlan): string {
+  const byCell = new Map<number, string>();
+  for (const w of plan.walls) {
+    byCell.set(
+      w.cell,
+      w.kind === 'move' ? `m${w.num}:${w.arrowDir}` : w.kind === 'expand' ? `x${w.dirs.join('')}` : 'e',
+    );
+  }
+  let s = '';
+  for (let c = 0; c < plan.cellCount; c++) s += byCell.get(c) ?? 'g';
+  return s;
 }
