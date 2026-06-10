@@ -100,7 +100,9 @@ export class Game {
       return;
     }
 
-    this.player.update(dt, this.input.direction);
+    const mv = this.input.consumeMove();
+    if (mv !== 0) this.player.tryMove(mv);
+    this.player.update(dt);
 
     const speedMul = this.input.fastForward ? FAST_FORWARD_MULT : 1;
     const passed = this.spawner.update(dt, speedMul);
