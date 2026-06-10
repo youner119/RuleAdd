@@ -52,7 +52,8 @@ export class StartScreen {
     this.root.appendChild(subtitle);
 
     const cards = document.createElement('div');
-    cards.style.cssText = 'display:flex;gap:20px;';
+    cards.style.cssText =
+      'display:grid;grid-template-columns:repeat(3,150px);gap:20px;justify-content:center;';
     for (const mode of MODES) cards.appendChild(this.makeCard(mode, onSelect));
     this.root.appendChild(cards);
 
