@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { checkCollision } from './CollisionSystem';
 import { InputController } from './InputController';
-import { createLaneGroup } from './lane';
+import { createLaneGroup, xToCell } from './lane';
 import { Player } from './Player';
 import { Spawner } from './Spawner';
+import type { Wall } from './Wall';
 import { ScoreSystem } from './ScoreSystem';
 import { RuleEngine } from '../rules/RuleEngine';
 import { RULES, ensureActiveRuleColors, resetRuleColors } from '../rules/rules';
@@ -113,15 +114,15 @@ export class Game {
     this.player.setHit(hitWall !== null); // 겹치는 동안 빨강 피드백
     if (hitWall && !hitWall.lifeTaken) {
       hitWall.lifeTaken = true; // 이 세트는 1회만 차감
-      this.loseLife();
+      this.loseLife(hitWall);
     }
   }
 
-  /** 충돌 1회 → 목숨 -1, 0 이면 게임오버. */
-  private loseLife(): void {
+  /** 충돌 1회 → 목숨 -1, 0 이면 게임오버(죽인 세트 전달). */
+  private loseLife(wall: Wall): void {
     this.lives -= 1;
     this.scoreHud.setLives(this.lives, this.maxLives);
-    if (this.lives <= 0) this.gameOver();
+    if (this.lives <= 0) this.gameOver(wall);
   }
 
   /** 세트 통과 누적 → 점수 가산 + 라운드 진행. */
@@ -161,9 +162,13 @@ export class Game {
     this.panel.render(this.engine.activeRules);
   }
 
-  private gameOver(): void {
+  private gameOver(wall: Wall): void {
     this.status = 'gameover';
-    this.gameOverScreen.show(this.score.value, this.round);
+    this.gameOverScreen.show(this.score.value, this.round, {
+      before: wall.before ?? wall.snapshot(),
+      after: wall.after ?? wall.before ?? wall.snapshot(),
+      playerCell: xToCell(this.player.x),
+    });
   }
 
   reset(): void {

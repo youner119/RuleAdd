@@ -130,6 +130,17 @@ export interface Block {
   readonly body: THREE.Mesh;
 }
 
+/**
+ * CellSnapshot — 게임오버 "왜 죽었나" 표시용. 한 시점의 한 칸 모습.
+ * before(스폰 시) / after(쉬프트·확장 후) 두 시점을 비교해 보여준다.
+ */
+export interface CellSnapshot {
+  blocked: boolean;
+  color: string | null;
+  arrowDir: number; // -1/0/+1 (화살표 이동 방향)
+  expandDirs: number[]; // 확장(ⓧ) 방향들(-1/+1). 비었으면 확장 아님
+}
+
 /** 확장(룰5) 성장 애니메이션 길이(초). */
 const GROW_SEC = 0.25;
 
@@ -142,6 +153,10 @@ export class Wall {
   shifted = false;
   /** 이 세트가 이미 목숨을 1 깎았는지 — 세트당 1회만 차감. */
   lifeTaken = false;
+  /** 스폰 시점(쉬프트 전) 칸 모습 — gap 이 안전해 보이던 배치(게임오버 표시용). */
+  before?: CellSnapshot[];
+  /** 쉬프트·확장 후 칸 모습 — 실제로 막힌 배치(게임오버 표시용). */
+  after?: CellSnapshot[];
   /** 성장 중인 확장 블록(룰5) — update 에서 스케일 애니메이션. */
   private readonly growing: { block: Block; dir: number; t: number }[] = [];
 
@@ -239,6 +254,20 @@ export class Wall {
       g.block.group.position.x = cellToX(g.block.cell) - g.dir * ((1 - s) * (CELL_SIZE / 2));
       if (s >= 1) this.growing.splice(i, 1);
     }
+  }
+
+  /** 현재 blocks 상태를 칸별 스냅샷으로(게임오버 before/after 표시용). */
+  snapshot(): CellSnapshot[] {
+    const cells: CellSnapshot[] = [];
+    for (let i = 0; i < CELL_COUNT; i++) {
+      const b = this.blocks.find((bl) => bl.cell === i);
+      cells.push(
+        b
+          ? { blocked: true, color: b.color, arrowDir: b.arrowDir, expandDirs: b.expDirs ?? [] }
+          : { blocked: false, color: null, arrowDir: 0, expandDirs: [] },
+      );
+    }
+    return cells;
   }
 
   get z(): number {

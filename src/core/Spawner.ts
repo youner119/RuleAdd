@@ -63,6 +63,7 @@ export class Spawner {
         this.shiftWall(w);
         this.expandWall(w);
         w.shifted = true; // 1회만
+        w.after = w.snapshot(); // 쉬프트·확장 후 모습(게임오버 표시용)
       }
       w.update(dt); // 확장 성장 애니메이션
     }
@@ -150,6 +151,7 @@ export class Spawner {
     const wall = new Wall(blockedFromPlan(plan));
     wall.z = SPAWN_Z;
     this.applyPlan(wall, plan);
+    wall.before = wall.snapshot(); // 스폰 시점 모습(게임오버 표시용)
 
     this.scene.add(wall.object);
     this.walls.push(wall);

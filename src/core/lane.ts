@@ -18,6 +18,12 @@ export function cellToX(index: number): number {
   return (index - (CELL_COUNT - 1) / 2) * CELL_SIZE;
 }
 
+/** X 좌표 → 가장 가까운 칸 인덱스 (cellToX 의 역, [0,CELL_COUNT) clamp). */
+export function xToCell(x: number): number {
+  const idx = Math.round(x / CELL_SIZE + (CELL_COUNT - 1) / 2);
+  return Math.max(0, Math.min(CELL_COUNT - 1, idx));
+}
+
 // --- 높이(Y) ---
 export const LANE_Y = 0.5; // 레인 표면을 격자(y=0) 위로 올린 높이. 구·벽이 이 위에 놓인다.
 
