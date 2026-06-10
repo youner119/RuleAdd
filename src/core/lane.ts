@@ -1,27 +1,52 @@
 import * as THREE from 'three';
 
 /**
- * lane — 4×1 레인의 좌표 정본(single source of truth).
+ * lane — 레인 좌표 정본(single source of truth).
  *
- * 셀 인덱스(0..3)와 월드 좌표의 변환을 여기 한곳에 모은다.
- * Player(현재 셀)·Spawner(벽 패턴)·CollisionSystem 이 모두 cellToX 를 공유해
- * 좌표 불일치를 원천 차단한다. 4×4 확장 시 cellToY 가 여기 추가된다.
+ * 셀은 **플랫 인덱스** `row*COLS + col` 로 식별한다(4×1 은 row 0 한 줄, 4×4 는 4줄).
+ * Player·Spawner·CollisionSystem·Wall 이 모두 cellToX/cellToY 를 공유해 좌표
+ * 불일치를 원천 차단한다. col/row 분해는 colOf/rowOf 가 정본.
  */
 
-export const CELL_COUNT = 4;
+export const COLS = 4; // 가로 칸 수(X축). 세로 줄 수(ROWS)는 4×4 모드/룰6 에서 1↔4 로 바뀐다.
 export const CELL_SIZE = 1;
-export const LANE_WIDTH = CELL_COUNT * CELL_SIZE; // 4
-export const START_CELL = 1; // 0-based — 가운데-왼쪽 칸에서 시작
+export const LANE_WIDTH = COLS * CELL_SIZE; // 4 (가로 폭)
+export const START_CELL = 1; // 0-based — 가운데-왼쪽 칸(col 1, row 0)에서 시작
 
-/** 셀 인덱스(0..3) → 월드 X (중앙정렬: -1.5 / -0.5 / 0.5 / 1.5). */
-export function cellToX(index: number): number {
-  return (index - (CELL_COUNT - 1) / 2) * CELL_SIZE;
+/**
+ * [legacy] 4×1 시절의 "총 칸수" = COLS. ROWS=1 일 때만 총 칸수와 일치한다.
+ * 4×4(ROWS=4) 에서 총 칸수가 필요한 곳(Wall 순회·setgen)은 명시적 COLS×ROWS 로
+ * 대체된다 — 좌표 변환 자체는 colOf/rowOf 가 정본이라 영향 없음.
+ */
+export const CELL_COUNT = COLS;
+
+/** 플랫 셀 인덱스(row*COLS+col) → 열(0..COLS-1). */
+export function colOf(cell: number): number {
+  return ((cell % COLS) + COLS) % COLS;
+}
+/** 플랫 셀 인덱스 → 행(0 = 맨 아래). */
+export function rowOf(cell: number): number {
+  return Math.floor(cell / COLS);
+}
+/** (열,행) → 플랫 셀 인덱스. */
+export function cellIndex(col: number, row: number): number {
+  return row * COLS + col;
 }
 
-/** X 좌표 → 가장 가까운 칸 인덱스 (cellToX 의 역, [0,CELL_COUNT) clamp). */
+/** 셀(플랫 인덱스) → 월드 X (열 기준, 중앙정렬: -1.5 / -0.5 / 0.5 / 1.5). */
+export function cellToX(cell: number): number {
+  return (colOf(cell) - (COLS - 1) / 2) * CELL_SIZE;
+}
+
+/** 셀(플랫 인덱스) → 월드 Y (행 기준; row 0 = 맨 아래 = 기존 4×1 높이). */
+export function cellToY(cell: number): number {
+  return LANE_Y + CELL_SIZE / 2 + rowOf(cell) * CELL_SIZE;
+}
+
+/** X 좌표 → 가장 가까운 열 인덱스 ([0,COLS) clamp). */
 export function xToCell(x: number): number {
-  const idx = Math.round(x / CELL_SIZE + (CELL_COUNT - 1) / 2);
-  return Math.max(0, Math.min(CELL_COUNT - 1, idx));
+  const idx = Math.round(x / CELL_SIZE + (COLS - 1) / 2);
+  return Math.max(0, Math.min(COLS - 1, idx));
 }
 
 // --- 높이(Y) ---
@@ -44,7 +69,7 @@ const GRID_SIZE = 70;
 
 /** 레인 X 경계 (x = -2 ~ 2). Player clamp 등에서 사용. */
 export const LANE_X_MIN = cellToX(0) - CELL_SIZE / 2;
-export const LANE_X_MAX = cellToX(CELL_COUNT - 1) + CELL_SIZE / 2;
+export const LANE_X_MAX = cellToX(COLS - 1) + CELL_SIZE / 2;
 
 /**
  * 흰 바닥(contact shadow 받음) + T2식 GridHelper(맵 전체 격자).
@@ -82,7 +107,7 @@ export function createLaneGroup(): THREE.Group {
   const by = LANE_Y + 0.012;
   const border: number[] = [];
   // 세로 경계 5개 (x = -2,-1,0,1,2), 깊이 방향으로 길게.
-  for (let i = 0; i <= CELL_COUNT; i++) {
+  for (let i = 0; i <= COLS; i++) {
     const x = LANE_X_MIN + i * CELL_SIZE;
     border.push(x, by, LANE_NEAR_Z, x, by, LANE_FAR_Z);
   }

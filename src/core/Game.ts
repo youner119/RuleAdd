@@ -102,7 +102,7 @@ export class Game {
     }
 
     const mv = this.input.consumeMove();
-    if (mv !== 0) this.player.tryMove(mv);
+    if (mv.dx !== 0 || mv.dy !== 0) this.player.tryMove(mv.dx, mv.dy);
     this.player.update(dt);
 
     const speedMul = this.input.fastForward ? FAST_FORWARD_MULT : 1;

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_COUNT, CELL_SIZE, cellToX, LANE_Y } from './lane';
+import { CELL_SIZE, cellToX, cellToY } from './lane';
 
 /**
  * Wall — 한 "세트"(다가오는 한 줄). Z로 함께 이동하지만, 그 안의 각 블록은
@@ -159,18 +159,21 @@ export class Wall {
   after?: CellSnapshot[];
   /** 성장 중인 확장 블록(룰5) — update 에서 스케일 애니메이션. */
   private readonly growing: { block: Block; dir: number; t: number }[] = [];
+  /** 이 세트의 총 칸수(= 그리드 COLS×ROWS). blocked 배열 길이로 결정. */
+  private readonly cellTotal: number;
 
   constructor(blocked: readonly boolean[]) {
+    this.cellTotal = blocked.length;
     this.object = new THREE.Group();
     this.blocks = [];
 
-    for (let i = 0; i < CELL_COUNT; i++) {
+    for (let i = 0; i < this.cellTotal; i++) {
       if (!blocked[i]) continue; // gap
       const group = new THREE.Group();
       const body = new THREE.Mesh(cellGeo, bodyMat);
       body.castShadow = true;
       group.add(body, new THREE.LineSegments(edgeGeo, edgeMat));
-      group.position.set(cellToX(i), LANE_Y + CELL_SIZE / 2, 0);
+      group.position.set(cellToX(i), cellToY(i), 0);
       this.object.add(group);
       this.blocks.push({ cell: i, arrowDir: 0, color: null, group, body });
     }
@@ -234,7 +237,7 @@ export class Wall {
     body.castShadow = true;
     group.add(body, new THREE.LineSegments(edgeGeo, edgeMat));
     // 시작: 확장벽과 맞닿은 모서리에 납작하게 붙음.
-    group.position.set(cellToX(cell) - fromDir * (CELL_SIZE / 2), LANE_Y + CELL_SIZE / 2, 0);
+    group.position.set(cellToX(cell) - fromDir * (CELL_SIZE / 2), cellToY(cell), 0);
     group.scale.x = 0.001;
     this.object.add(group);
     const block: Block = { cell, arrowDir: 0, color: null, group, body };
@@ -259,7 +262,7 @@ export class Wall {
   /** 현재 blocks 상태를 칸별 스냅샷으로(게임오버 before/after 표시용). */
   snapshot(): CellSnapshot[] {
     const cells: CellSnapshot[] = [];
-    for (let i = 0; i < CELL_COUNT; i++) {
+    for (let i = 0; i < this.cellTotal; i++) {
       const b = this.blocks.find((bl) => bl.cell === i);
       cells.push(
         b
