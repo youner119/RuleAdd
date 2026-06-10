@@ -49,6 +49,38 @@ export function xToCell(x: number): number {
   return Math.max(0, Math.min(COLS - 1, idx));
 }
 
+// --- 2D 방향 (화살표·쉬프트·확장) ---
+
+/** 2D 격자 방향. 각 성분 -1/0/+1, 기본은 4방위(둘 중 하나만 비0) 또는 {0,0}=없음. */
+export interface Dir {
+  x: number; // 열 방향 (+우/-좌)
+  y: number; // 행 방향 (+위/-아래)
+}
+export const DIR_NONE: Dir = { x: 0, y: 0 };
+/** 4방위 (우/좌/위/아래). */
+export const DIRS4: readonly Dir[] = [
+  { x: 1, y: 0 },
+  { x: -1, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: -1 },
+];
+export function dirEq(a: Dir, b: Dir): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+/** 방향이 있는가(움직이는가). {0,0} 이면 false. */
+export function isDir(d: Dir): boolean {
+  return d.x !== 0 || d.y !== 0;
+}
+export function negDir(d: Dir): Dir {
+  return { x: -d.x, y: -d.y };
+}
+/** 셀에서 dir 방향 한 칸 이웃 — 열·행 각각 wrap(토러스). rows = 세로 줄 수. */
+export function stepCell(cell: number, d: Dir, rows: number): number {
+  const col = (((colOf(cell) + d.x) % COLS) + COLS) % COLS;
+  const row = (((rowOf(cell) + d.y) % rows) + rows) % rows;
+  return cellIndex(col, row);
+}
+
 // --- 높이(Y) ---
 export const LANE_Y = 0.5; // 레인 표면을 격자(y=0) 위로 올린 높이. 구·벽이 이 위에 놓인다.
 

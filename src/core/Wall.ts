@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_SIZE, cellToX, cellToY } from './lane';
+import { CELL_SIZE, DIR_NONE, type Dir, cellToX, cellToY, isDir } from './lane';
 
 /**
  * Wall — 한 "세트"(다가오는 한 줄). Z로 함께 이동하지만, 그 안의 각 블록은
@@ -104,11 +104,9 @@ function wedgeGeoFor(centerAngle: number): THREE.ShapeGeometry {
   }
   return g;
 }
-/** 확장 방향 → 마커 분면 중심각. 우(+1)=0, 좌(-1)=π. (4×4 확장 시 상/하 추가) */
-function expAngle(dir: number): number | undefined {
-  if (dir === 1) return 0;
-  if (dir === -1) return Math.PI;
-  return undefined;
+/** 확장 방향 → 마커 분면 중심각. 우=0 / 위=π/2 / 좌=π / 아래=-π/2 (4방위). */
+function expAngle(dir: Dir): number {
+  return Math.atan2(dir.y, dir.x);
 }
 
 /**
@@ -116,14 +114,14 @@ function expAngle(dir: number): number | undefined {
  * color/arrowDir 는 RuleWall 을 만족(엔진이 블록별 행동을 resolve).
  */
 export interface Block {
-  /** 현재 칸 인덱스 (0..CELL_COUNT-1). 쉬프트로 바뀐다. */
+  /** 현재 칸 인덱스(플랫 row*COLS+col). 쉬프트로 바뀐다. */
   cell: number;
-  /** 룰2 화살표 방향 (-1/0/+1). 0=화살표 없음=안 움직임. */
-  arrowDir: number;
+  /** 룰2 화살표 방향 (2D, {0,0}=없음=안 움직임). */
+  arrow: Dir;
   /** 룰3/4/5 색 (없으면 null). */
   color: string | null;
-  /** 룰5 확장: 잡아먹는 방향들(-1/+1). 확장벽이 아니면 없음. */
-  expDirs?: number[];
+  /** 룰5 확장: 잡아먹는 방향들(2D). 확장벽이 아니면 없음. */
+  expDirs?: Dir[];
   /** 이 블록의 메시 그룹(body+edges, +arrow/marker). */
   readonly group: THREE.Group;
   /** body 메시 — 색칠 시 머티리얼 교체용. */
@@ -137,8 +135,8 @@ export interface Block {
 export interface CellSnapshot {
   blocked: boolean;
   color: string | null;
-  arrowDir: number; // -1/0/+1 (화살표 이동 방향)
-  expandDirs: number[]; // 확장(ⓧ) 방향들(-1/+1). 비었으면 확장 아님
+  arrow: Dir; // 화살표 이동 방향 (2D, {0,0}=없음)
+  expandDirs: Dir[]; // 확장(ⓧ) 방향들(2D). 비었으면 확장 아님
 }
 
 /** 확장(룰5) 성장 애니메이션 길이(초). */
@@ -158,7 +156,7 @@ export class Wall {
   /** 쉬프트·확장 후 칸 모습 — 실제로 막힌 배치(게임오버 표시용). */
   after?: CellSnapshot[];
   /** 성장 중인 확장 블록(룰5) — update 에서 스케일 애니메이션. */
-  private readonly growing: { block: Block; dir: number; t: number }[] = [];
+  private readonly growing: { block: Block; dir: Dir; t: number }[] = [];
   /** 이 세트의 총 칸수(= 그리드 COLS×ROWS). blocked 배열 길이로 결정. */
   private readonly cellTotal: number;
 
@@ -175,31 +173,29 @@ export class Wall {
       group.add(body, new THREE.LineSegments(edgeGeo, edgeMat));
       group.position.set(cellToX(i), cellToY(i), 0);
       this.object.add(group);
-      this.blocks.push({ cell: i, arrowDir: 0, color: null, group, body });
+      this.blocks.push({ cell: i, arrow: DIR_NONE, color: null, group, body });
     }
   }
 
-  /** 룰2: 블록 중앙(앞면)에 화살표(흰색+테두리). dir=-1/+1. */
-  showArrow(block: Block, dir: number): void {
-    block.arrowDir = dir;
-    if (dir === 0) return;
+  /** 룰2: 블록 중앙(앞면)에 화살표(흰색+테두리). dir=4방위. */
+  showArrow(block: Block, dir: Dir): void {
+    block.arrow = dir;
+    if (!isDir(dir)) return;
     const arrow = new THREE.Group();
     arrow.add(new THREE.Mesh(arrowGeo, arrowMat));
     arrow.add(new THREE.LineSegments(arrowEdgeGeo, arrowEdgeMat));
-    arrow.scale.x = dir; // -1 이면 좌측 미러
+    arrow.rotation.z = Math.atan2(dir.y, dir.x); // +X 기준 화살표를 방향에 맞춰 회전
     arrow.position.set(0, 0, WALL_THICKNESS / 2 + 0.05); // 블록 로컬: 중앙·앞면
     block.group.add(arrow);
   }
 
   /** 룰5: 블록 중앙(앞면)에 확장 마커 — 동그라미 + X + 먹는 방향 분면 전체 검정. */
-  showExpansion(block: Block, dirs: number[]): void {
+  showExpansion(block: Block, dirs: Dir[]): void {
     block.expDirs = dirs;
     const marker = new THREE.Group();
     marker.add(new THREE.Mesh(markDiscGeo, markWhiteMat)); // 바탕 흰 원판 (z 0)
     for (const d of dirs) {
-      const a = expAngle(d);
-      if (a === undefined) continue;
-      const wedge = new THREE.Mesh(wedgeGeoFor(a), markBlackMat); // 분면 전체 검정칠
+      const wedge = new THREE.Mesh(wedgeGeoFor(expAngle(d)), markBlackMat); // 분면 검정칠
       wedge.position.z = 0.002; // 원판 위
       marker.add(wedge);
     }
@@ -223,26 +219,32 @@ export class Wall {
   moveBlock(block: Block, newCell: number): void {
     block.cell = newCell;
     block.group.position.x = cellToX(newCell);
+    block.group.position.y = cellToY(newCell);
   }
 
   /**
    * 룰5: 확장벽이 인접 칸으로 자라난다 — 쉬프트 트리거 시점에 호출.
    * 스폰 때는 빈 칸으로 보이다가, 이 시점에 확장벽 쪽 모서리에서 바깥으로
    * 늘어나는 애니메이션과 함께 벽 블록이 생긴다(0 2 0 0 → 0 2 2 0 느낌).
-   * fromDir = 확장 방향(확장벽 → 이 칸, -1/+1).
+   * from = 확장 방향(확장벽 → 이 칸, 4방위).
    */
-  growBlock(cell: number, fromDir: number): Block {
+  growBlock(cell: number, from: Dir): Block {
     const group = new THREE.Group();
     const body = new THREE.Mesh(cellGeo, bodyMat);
     body.castShadow = true;
     group.add(body, new THREE.LineSegments(edgeGeo, edgeMat));
-    // 시작: 확장벽과 맞닿은 모서리에 납작하게 붙음.
-    group.position.set(cellToX(cell) - fromDir * (CELL_SIZE / 2), cellToY(cell), 0);
-    group.scale.x = 0.001;
+    // 시작: 확장벽과 맞닿은 모서리에 납작하게 붙음(자라는 축만 0).
+    group.position.set(
+      cellToX(cell) - from.x * (CELL_SIZE / 2),
+      cellToY(cell) - from.y * (CELL_SIZE / 2),
+      0,
+    );
+    if (from.x !== 0) group.scale.x = 0.001;
+    else group.scale.y = 0.001;
     this.object.add(group);
-    const block: Block = { cell, arrowDir: 0, color: null, group, body };
+    const block: Block = { cell, arrow: DIR_NONE, color: null, group, body };
     this.blocks.push(block); // 충돌 대상 등록(트리거 시점부터 막힘)
-    this.growing.push({ block, dir: fromDir, t: 0 });
+    this.growing.push({ block, dir: from, t: 0 });
     return block;
   }
 
@@ -252,9 +254,18 @@ export class Wall {
       const g = this.growing[i]!;
       g.t += dt / GROW_SEC;
       const s = Math.min(1, g.t);
-      g.block.group.scale.x = Math.max(0.001, s);
-      // 확장벽 쪽 모서리를 고정한 채 바깥으로 자란다.
-      g.block.group.position.x = cellToX(g.block.cell) - g.dir * ((1 - s) * (CELL_SIZE / 2));
+      const bx = cellToX(g.block.cell);
+      const by = cellToY(g.block.cell);
+      // 확장벽 쪽 모서리를 고정한 채 바깥으로 자란다(자라는 축만 스케일).
+      if (g.dir.x !== 0) {
+        g.block.group.scale.x = Math.max(0.001, s);
+        g.block.group.position.x = bx - g.dir.x * ((1 - s) * (CELL_SIZE / 2));
+        g.block.group.position.y = by;
+      } else {
+        g.block.group.scale.y = Math.max(0.001, s);
+        g.block.group.position.y = by - g.dir.y * ((1 - s) * (CELL_SIZE / 2));
+        g.block.group.position.x = bx;
+      }
       if (s >= 1) this.growing.splice(i, 1);
     }
   }
@@ -266,8 +277,8 @@ export class Wall {
       const b = this.blocks.find((bl) => bl.cell === i);
       cells.push(
         b
-          ? { blocked: true, color: b.color, arrowDir: b.arrowDir, expandDirs: b.expDirs ?? [] }
-          : { blocked: false, color: null, arrowDir: 0, expandDirs: [] },
+          ? { blocked: true, color: b.color, arrow: b.arrow, expandDirs: b.expDirs ?? [] }
+          : { blocked: false, color: null, arrow: DIR_NONE, expandDirs: [] },
       );
     }
     return cells;

@@ -8,21 +8,22 @@
  * 룰1~5 는 rules.ts 에 데이터로 정의되고, 효과 배선은 T9~T11. v2 룰6~10 도
  * 이 fold 에 끼워넣기만 하면 된다.
  */
+import { DIR_NONE, type Dir } from '../core/lane';
 
 /** 룰이 읽는 블록(개별 벽) 속성. 구체 Block 이 이 속성을 갖춘다. */
 export interface RuleBlock {
   /** 룰3/4/5 색 (없으면 null). */
   color: string | null;
-  /** 룰2 화살표 방향 (-1=좌 / 0=없음 / +1=우). */
-  arrowDir: number;
+  /** 룰2 화살표 방향 (2D: 우/좌/위/아래, {0,0}=없음). */
+  arrow: Dir;
 }
 
 /** 룰이 결정하는 블록의 행동. */
 export interface BlockBehavior {
   /** 룰4: 특정 색 블록은 구와 충돌하지 않음. */
   collidable: boolean;
-  /** 룰2/3: 근접 시 블록 쉬프트 방향 (-1/0/+1). */
-  shiftDir: number;
+  /** 룰2/3: 근접 시 블록 쉬프트 방향 (2D, {0,0}=정지). */
+  shift: Dir;
 }
 
 /** 데이터 주도 룰 — 블록별로 적용. */
@@ -41,7 +42,7 @@ export interface Rule {
   setColor?(color: string | null): void;
 }
 
-const BASE_BEHAVIOR: BlockBehavior = { collidable: true, shiftDir: 0 };
+const BASE_BEHAVIOR: BlockBehavior = { collidable: true, shift: DIR_NONE };
 
 export class RuleEngine {
   private readonly rules: readonly Rule[]; // 전체 룰 (id 오름차순 = 추가 순서)

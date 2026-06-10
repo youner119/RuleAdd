@@ -62,9 +62,16 @@ export class Player {
     this.object.position.set(this.targetX, this.targetY, PLAYER_Z);
   }
 
-  /** 행(row) → 구 중심 Y. row 0 = 기존 4×1 높이(레인 위), 위로 한 칸씩 올라간다. */
+  /**
+   * 행(row) → 구 중심 Y.
+   *  - 4×1(rows=1): 레인 위에 얹힘(기존 그대로) — 한 줄뿐이라 세로 충돌 모호성 없음.
+   *  - 4×4(rows>1): 칸 중앙(블록 중심과 동일) — 세로 충돌이 가로처럼 대칭이 되어
+   *    아래/위 행 거리가 모두 1.0(>Y_REACH)으로 또렷이 안전·위험이 갈린다.
+   */
   private rowToY(row: number): number {
-    return LANE_Y + PLAYER_RADIUS + row * CELL_SIZE;
+    return this.rows > 1
+      ? LANE_Y + CELL_SIZE / 2 + row * CELL_SIZE
+      : LANE_Y + PLAYER_RADIUS;
   }
 
   /** 현재 X 위치 (충돌 판정 등에서 사용). */
@@ -77,14 +84,17 @@ export class Player {
     return this.object.position.y;
   }
 
-  /** 세로 줄 수 갱신(4×4 모드/룰6 확장). 현재 행이 범위를 벗어나면 clamp. */
+  /** 현재 칸(플랫 인덱스 row*COLS+col) — 게임오버 "죽은 칸" 표시용. */
+  get cell(): number {
+    return cellIndex(this.currentCol, this.currentRow);
+  }
+
+  /** 세로 줄 수 갱신(4×4 모드/룰6 확장). 행 clamp + Y 기준(바닥/중앙) 재계산. */
   setRows(rows: number): void {
     this.rows = rows;
-    if (this.currentRow > rows - 1) {
-      this.currentRow = rows - 1;
-      this.targetY = this.rowToY(this.currentRow);
-      this.object.position.y = this.targetY;
-    }
+    this.currentRow = Math.min(this.currentRow, rows - 1);
+    this.targetY = this.rowToY(this.currentRow); // 4×1↔4×4 전환 시 높이 갱신
+    this.object.position.y = this.targetY;
   }
 
   /**

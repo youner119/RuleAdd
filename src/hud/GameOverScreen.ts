@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LANE_Y, cellToX } from '../core/lane';
+import { CELL_SIZE, COLS, LANE_Y, cellToX, cellToY, isDir } from '../core/lane';
 import { PLAYER_RADIUS } from '../core/Player';
 import { Wall, type CellSnapshot } from '../core/Wall';
 
@@ -186,11 +186,17 @@ export class GameOverScreen {
   ): string {
     const { renderer, scene, camera, sphere } = this.ensureRenderer();
 
+    // 그리드 높이(행 수)에 맞춰 정면 약간 위에서 프레이밍 (4×1·4×4 공통).
+    const rows = Math.max(1, Math.round(cells.length / COLS));
+    const cy = LANE_Y + CELL_SIZE / 2 + ((rows - 1) * CELL_SIZE) / 2;
+    camera.position.set(0, cy + 1.0, 5.5 + (rows - 1) * 1.6);
+    camera.lookAt(0, cy, 0);
+
     const wall = this.buildWall(cells);
     scene.add(wall.object);
 
     if (showPlayer) {
-      sphere.position.x = cellToX(playerCell);
+      sphere.position.set(cellToX(playerCell), cellToY(playerCell), 1.2); // 죽은 칸 중앙·벽 앞
       (sphere.material as THREE.MeshStandardMaterial).color.set(danger ? 0xe23b3b : 0x3b6fe2);
       scene.add(sphere);
     }
@@ -210,7 +216,7 @@ export class GameOverScreen {
       if (!c) continue;
       if (c.color) wall.setColor(block, c.color);
       if (c.expandDirs.length > 0) wall.showExpansion(block, c.expandDirs);
-      else if (c.arrowDir !== 0) wall.showArrow(block, c.arrowDir);
+      else if (isDir(c.arrow)) wall.showArrow(block, c.arrow);
     }
     return wall;
   }

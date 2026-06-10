@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { CELL_COUNT, LANE_NEAR_Z, PLAYER_Z, SPAWN_Z } from './lane';
-import { wrapCell } from './pattern';
+import { LANE_NEAR_Z, PLAYER_Z, SPAWN_Z, isDir, stepCell } from './lane';
 import { generateSet, type Num, type SetPlan } from './setgen';
 import { Wall } from './Wall';
 import type { RuleEngine } from '../rules/RuleEngine';
@@ -26,13 +25,22 @@ export class Spawner {
   private lastSig = ''; // 직전 패턴 (연속 동일 회피)
   /** 벽 이동 속도(월드 단위/초). 세트 간격(초) = WALL_SPACING / 이 값. */
   private readonly wallSpeed: number;
+  /** 세로 줄 수 (1=4×1, 4=4×4). 룰6/4×4 모드에서 Game 이 setRows 로 바꾼다. */
+  private rows: number;
 
   constructor(
     private readonly scene: THREE.Scene,
     private readonly engine: RuleEngine,
     setIntervalSec: number = DEFAULT_INTERVAL_SEC,
+    rows = 1,
   ) {
     this.wallSpeed = WALL_SPACING / setIntervalSec;
+    this.rows = rows;
+  }
+
+  /** 세로 줄 수 갱신(4×4 모드/룰6 확장). 다음 스폰부터 적용. */
+  setRows(rows: number): void {
+    this.rows = rows;
   }
 
   /** 활성 벽 목록 (T7 충돌 판정에서 사용). */
@@ -97,8 +105,8 @@ export class Spawner {
   private shiftWall(wall: Wall): void {
     const blocks = wall.blocks;
     const finals = blocks.map((b) => {
-      const dir = this.engine.resolveBehavior(b).shiftDir; // 룰3 반대/룰4 정지
-      return wrapCell(b.cell + dir, CELL_COUNT); // 끝에서 바깥 → 반대쪽 끝(순환)
+      const dir = this.engine.resolveBehavior(b).shift; // 2D 방향(룰3 정지 등 반영)
+      return stepCell(b.cell, dir, this.rows); // 끝에서 바깥 → 반대쪽 끝(토러스)
     });
 
     // 최종 칸이 모두 distinct → 전부 적용(맞바꿈 포함, 겹침 없음).
@@ -137,7 +145,7 @@ export class Spawner {
     for (const b of [...wall.blocks]) {
       if (!b.expDirs) continue;
       for (const d of b.expDirs) {
-        wall.growBlock(wrapCell(b.cell + d, CELL_COUNT), d);
+        wall.growBlock(stepCell(b.cell, d, this.rows), d);
       }
     }
   }
@@ -160,8 +168,8 @@ export class Spawner {
   /** 활성 룰(라운드)에서 생성기 파라미터를 도출해 세트를 생성. */
   private makePlan(): SetPlan {
     return generateSet({
-      cellCount: CELL_COUNT,
-      passableCount: PASSABLE_COUNT,
+      rows: this.rows,
+      passableCount: PASSABLE_COUNT * this.rows, // 4×1=1, 4×4=4 (행마다 안전칸 1)
       active: {
         move: this.engine.isActive(2),
         opposite: false, // "반대 방향" 룰 비활성화 — 기능 코드는 setgen/rules 에 보존
@@ -185,7 +193,7 @@ export class Spawner {
       if (w.kind === 'move') {
         const color = this.colorForNum(w.num);
         if (color) wall.setColor(block, color);
-        if (w.arrowDir !== 0) wall.showArrow(block, w.arrowDir);
+        if (isDir(w.arrow)) wall.showArrow(block, w.arrow);
       } else if (w.kind === 'expand') {
         wall.showExpansion(block, w.dirs);
       }
@@ -218,7 +226,11 @@ function planSig(plan: SetPlan): string {
   for (const w of plan.walls) {
     byCell.set(
       w.cell,
-      w.kind === 'move' ? `m${w.num}:${w.arrowDir}` : w.kind === 'expand' ? `x${w.dirs.join('')}` : 'e',
+      w.kind === 'move'
+        ? `m${w.num}:${w.arrow.x},${w.arrow.y}`
+        : w.kind === 'expand'
+          ? `x${w.dirs.map((d) => `${d.x},${d.y}`).join('|')}`
+          : 'e',
     );
   }
   let s = '';

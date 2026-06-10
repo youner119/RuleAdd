@@ -1,3 +1,4 @@
+import { DIR_NONE, isDir, negDir } from '../core/lane';
 import type { BlockBehavior, Rule, RuleBlock } from './RuleEngine';
 
 /**
@@ -36,8 +37,8 @@ const rule1: Rule = {
 const rule2: Rule = {
   id: 2,
   label: '화살표 방향으로 벽이 움직인다',
-  appliesTo: (block) => block.arrowDir !== 0,
-  modify: (behavior, block) => ({ ...behavior, shiftDir: block.arrowDir }),
+  appliesTo: (block) => isDir(block.arrow),
+  modify: (behavior, block) => ({ ...behavior, shift: block.arrow }),
 };
 
 /** 색 룰 팩토리 — targetColor(런마다 랜덤) 인 블록에 effect 적용. */
@@ -64,7 +65,7 @@ function makeColorRule(
 /** 룰3 — 이 색 블록은 화살표가 있어도 움직이지 않는다(정지). */
 const rule3 = makeColorRule(3, '이 색은 움직이지 않는다', (behavior) => ({
   ...behavior,
-  shiftDir: 0,
+  shift: DIR_NONE,
 }));
 
 /** 룰4 — 이 색 블록은 구와 충돌하지 않는다(통과). */
@@ -86,7 +87,20 @@ const rule5: Rule = {
   modify: (behavior) => behavior,
 };
 
-export const RULES: readonly Rule[] = [rule1, rule2, rule3, rule4, rule5];
+/**
+ * 룰6 — 확장: 평면이 4×1 → 4×4 로 커진다. 이후 위/아래(wasd)로도 피해야 한다.
+ * 블록 행동은 바꾸지 않는다(2D 일반화는 setgen/Spawner 가 담당) — 이 룰은
+ * 활성화(라운드6)·HUD 표시용 마커. Game 이 isActive(6) 으로 그리드를 4 줄로 전환.
+ * 4×4 모드는 이 룰과 무관하게 시작부터 4×4(Game 의 grid4x4 플래그).
+ */
+const rule6: Rule = {
+  id: 6,
+  label: '이제 4×4 크기로 위아래(wasd)도 피한다',
+  appliesTo: () => false,
+  modify: (behavior) => behavior,
+};
+
+export const RULES: readonly Rule[] = [rule1, rule2, rule3, rule4, rule5, rule6];
 
 /**
  * 비활성화된 룰(기능 보존) — "이 색은 화살표 반대로 이동"(구 룰3).
@@ -96,7 +110,7 @@ export const RULES: readonly Rule[] = [rule1, rule2, rule3, rule4, rule5];
  */
 const ruleOpposite = makeColorRule(6, '이 색은 화살표 반대로 이동', (behavior, block) => ({
   ...behavior,
-  shiftDir: -block.arrowDir,
+  shift: negDir(block.arrow),
 }));
 
 export const DISABLED_RULES: readonly Rule[] = [ruleOpposite];

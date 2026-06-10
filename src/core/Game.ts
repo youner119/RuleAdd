@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { checkCollision } from './CollisionSystem';
 import { InputController } from './InputController';
-import { createLaneGroup, xToCell } from './lane';
+import { createLaneGroup } from './lane';
 import { Player } from './Player';
 import { Spawner } from './Spawner';
 import type { Wall } from './Wall';
@@ -31,12 +31,20 @@ const SETS_PER_ROUND = 10;
 const ROUND_TRANSITION_SEC = 1.8;
 /** 스킵(Space) 시 벽 진행 속도 배율. 충돌 판정은 유지 — 위험 감수 빨리감기. */
 const FAST_FORWARD_MULT = 4;
+/** ruleFloor 가 강제할 수 있는 최대 룰 = 룰1~5. 룰6(4×4 확장)은 라운드6 또는 4×4 모드로만 켜진다. */
+const STANDARD_RULES = 5;
 
 export class Game {
   private status: GameStatus = 'playing';
   private readonly scene: THREE.Scene;
   private readonly laneGroup: THREE.Group;
   private readonly onMenu: () => void;
+  /** 그리드 줄 수 변경 시 카메라 프레이밍 갱신(main 이 주입). */
+  private readonly onGridRows: (rows: number) => void;
+  /** 4×4 모드(처음부터 4×4). 4×1 모드는 라운드6 룰6 활성 시 4×4 로 확장. */
+  private readonly grid4x4: boolean;
+  /** 현재 세로 줄 수 (1=4×1, 4=4×4). */
+  private rows: number;
   private readonly input: InputController;
   private readonly player: Player;
   private readonly spawner: Spawner;
@@ -56,32 +64,41 @@ export class Game {
   private setsPassed = 0;
   private transitionTimer = 0; // >0 이면 라운드 전환 텀(게임 정지)
 
-  constructor(scene: THREE.Scene, difficulty: Difficulty = 'normal', onMenu: () => void = () => {}) {
+  constructor(
+    scene: THREE.Scene,
+    difficulty: Difficulty = 'normal',
+    onMenu: () => void = () => {},
+    onGridRows: (rows: number) => void = () => {},
+  ) {
     this.scene = scene;
     this.onMenu = onMenu;
-    const cfg = difficultyConfig(difficulty, RULES.length);
+    this.onGridRows = onGridRows;
+    const cfg = difficultyConfig(difficulty, STANDARD_RULES);
     this.ruleFloor = cfg.ruleFloor;
     this.showRulePanel = cfg.showRulePanel;
     this.maxLives = cfg.lives;
     this.lives = cfg.lives;
+    this.grid4x4 = cfg.grid4x4;
+    this.rows = cfg.grid4x4 ? 4 : 1; // 4×4 모드는 처음부터 4줄
 
     this.input = new InputController();
 
     this.laneGroup = createLaneGroup();
     scene.add(this.laneGroup);
 
-    this.player = new Player();
+    this.player = new Player(this.rows);
     scene.add(this.player.object);
 
     this.engine = new RuleEngine(RULES);
-    this.spawner = new Spawner(scene, this.engine, cfg.setIntervalSec);
+    this.spawner = new Spawner(scene, this.engine, cfg.setIntervalSec, this.rows);
     this.panel = new RulePanel(this.showRulePanel);
     this.gameOverScreen = new GameOverScreen(
       () => this.reset(),
       () => this.onMenu(),
     );
 
-    this.applyRound(); // 시작 라운드(난이도 ruleFloor)의 룰 활성 + 색 배정 + 패널
+    this.applyRound(); // 시작 라운드(난이도 ruleFloor)의 룰 활성 + 색 배정 + 패널 + 그리드
+    this.onGridRows(this.rows); // 시작 카메라 프레이밍(4×4 모드면 4줄 시점)
     this.scoreHud.update(this.score.value, this.round);
     this.scoreHud.setLives(this.lives, this.maxLives);
 
@@ -160,6 +177,17 @@ export class Game {
     this.engine.activateUpTo(Math.max(this.round, this.ruleFloor));
     ensureActiveRuleColors(this.engine.activeRules);
     this.panel.render(this.engine.activeRules);
+    this.refreshGridRows();
+  }
+
+  /** 룰6(4×4 확장) 활성 또는 4×4 모드면 4줄, 아니면 1줄로 그리드 전환(+카메라). */
+  private refreshGridRows(): void {
+    const want = this.grid4x4 || this.engine.isActive(6) ? 4 : 1;
+    if (want === this.rows) return;
+    this.rows = want;
+    this.player.setRows(want);
+    this.spawner.setRows(want);
+    this.onGridRows(want);
   }
 
   private gameOver(wall: Wall): void {
@@ -167,7 +195,7 @@ export class Game {
     this.gameOverScreen.show(this.score.value, this.round, {
       before: wall.before ?? wall.snapshot(),
       after: wall.after ?? wall.before ?? wall.snapshot(),
-      playerCell: xToCell(this.player.x),
+      playerCell: this.player.cell,
     });
   }
 

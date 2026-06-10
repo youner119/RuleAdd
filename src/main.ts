@@ -23,6 +23,12 @@ const CAMERA = {
   lookAt: new THREE.Vector3(0, 0.6, PLAYER_Z - 8), // 플레이어 너머 깊이 응시
 } as const;
 
+/** 4×4 시점 — 세로로 커진 평면(행 0~3)을 담도록 더 위·뒤로 물러난다. */
+const CAMERA_4X4 = {
+  position: new THREE.Vector3(0, 7.5, 12.5),
+  lookAt: new THREE.Vector3(0, 2.3, PLAYER_Z - 8),
+} as const;
+
 const mount = document.querySelector<HTMLDivElement>('#app');
 if (!mount) {
   throw new Error('#app mount point not found');
@@ -71,9 +77,17 @@ scene.add(dir);
 
 // --- Game (난이도 선택 후 시작, 메뉴로 복귀 가능) ---
 let game: Game | null = null;
+
+/** 그리드 줄 수(1=4×1, 4=4×4)에 맞춰 카메라 프레이밍 전환. Game 이 호출. */
+function setCameraForRows(rows: number): void {
+  const c = rows >= 4 ? CAMERA_4X4 : CAMERA;
+  camera.position.copy(c.position);
+  camera.lookAt(c.lookAt);
+}
+
 function showStartScreen(): void {
   new StartScreen(mount as HTMLDivElement, (difficulty) => {
-    game = new Game(scene, difficulty, handleMenu);
+    game = new Game(scene, difficulty, handleMenu, setCameraForRows);
   });
 }
 function handleMenu(): void {
