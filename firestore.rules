@@ -1,0 +1,45 @@
+rules_version = '2';
+
+// RuleAdd 리더보드 Security Rules.
+// Firebase 콘솔 → Firestore Database → 규칙(Rules) 탭에 그대로 붙여넣고 "게시".
+//
+// 정책(과제 수준):
+//  - leaderboards/{mode}/scores 컬렉션만 접근 허용. 그 외 경로 전면 차단.
+//  - 읽기: 누구나(랭킹 표시용).
+//  - 생성: 형식이 맞을 때만 허용 — 점수=양수, 이름≤12자, 코멘트≤100자, 시각=서버시각.
+//  - 수정/삭제: 전면 금지(기존 기록 조작·삭제 불가).
+//  - mode 는 정해진 5개 모드만.
+//
+// ⚠️ 익명 쓰기를 허용하므로(로그인 없는 리더보드) 가짜 점수 입력 자체는 완전히
+//    막지 못한다. 이는 키 노출과 무관한 익명 리더보드의 한계이며, 완벽한 anti-cheat
+//    (서버 점수 재검증)는 본 과제 범위 밖이다.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /leaderboards/{mode}/scores/{doc} {
+      allow read: if true;
+
+      allow create: if isValidMode(mode) && isValidEntry();
+      allow update, delete: if false;
+    }
+
+    // 그 외 모든 경로 차단.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+function isValidMode(mode) {
+  return mode in ['easy', 'normal', 'hard', 'blind', '4x4'];
+}
+
+function isValidEntry() {
+  let d = request.resource.data;
+  return d.keys().hasOnly(['score', 'name', 'comment', 'at'])
+    && d.score is int && d.score > 0 && d.score < 1000000000
+    && d.name is string && d.name.size() >= 1 && d.name.size() <= 12
+    && d.comment is string && d.comment.size() <= 100
+    && d.at == request.time;
+}

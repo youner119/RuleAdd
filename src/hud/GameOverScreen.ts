@@ -25,6 +25,8 @@ export class GameOverScreen {
   private readonly scoreEl: HTMLDivElement;
   private readonly roundEl: HTMLDivElement;
   private readonly deathView: HTMLDivElement;
+  /** 중앙 창 옆 슬롯 — 기록판(ScoreboardPanel) 이 마운트된다. 비어 있으면 0폭. */
+  private readonly sideSlot: HTMLDivElement;
   // 미니 3D 리플레이 렌더(lazy 생성, dispose 시 정리) — 죽인 세트를 실제 메시로 그린다.
   private renderer?: THREE.WebGLRenderer;
   private replayScene?: THREE.Scene;
@@ -39,6 +41,7 @@ export class GameOverScreen {
       'display:flex',
       'align-items:center',
       'justify-content:center',
+      'gap:24px',
       'background:rgba(255,255,255,0.7)',
       'font-family:system-ui,sans-serif',
       'color:#222',
@@ -87,9 +90,18 @@ export class GameOverScreen {
     hint.style.cssText = 'font:400 12px/1 system-ui,sans-serif;color:#aaa;';
 
     win.append(title, scoreLabel, this.scoreEl, this.roundEl, this.deathView, buttons, hint);
-    this.root.appendChild(win);
+
+    this.sideSlot = document.createElement('div');
+    this.sideSlot.style.cssText = 'display:flex;';
+
+    this.root.append(win, this.sideSlot);
     document.body.appendChild(this.root);
     this.hide();
+  }
+
+  /** 옆 슬롯에 기록판 DOM 을 끼운다(중앙 창과 나란히 표시). */
+  mountSide(el: HTMLElement): void {
+    this.sideSlot.replaceChildren(el);
   }
 
   private makeButton(text: string, onClick: () => void): HTMLButtonElement {

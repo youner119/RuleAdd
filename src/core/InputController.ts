@@ -58,6 +58,7 @@ export class InputController {
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (isTextInput(e.target)) return; // 이름/코멘트 입력 중엔 게임 키 무시(Space·화살표 preventDefault 방지)
     if (this.isLeftKey(e.key) && !this.left) {
       this.left = true;
       this.pendingX = -1;
@@ -79,10 +80,16 @@ export class InputController {
   };
 
   private readonly onKeyUp = (e: KeyboardEvent): void => {
+    if (isTextInput(e.target)) return;
     if (this.isLeftKey(e.key)) this.left = false;
     else if (this.isRightKey(e.key)) this.right = false;
     else if (this.isUpKey(e.key)) this.up = false;
     else if (this.isDownKey(e.key)) this.down = false;
     else if (e.code === 'Space') this.fast = false;
   };
+}
+
+/** 이벤트 타깃이 텍스트 입력 필드(input/textarea)인지 — 게임 키 가드용. */
+export function isTextInput(target: EventTarget | null): boolean {
+  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 }

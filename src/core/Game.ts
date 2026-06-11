@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { checkCollision } from './CollisionSystem';
-import { InputController } from './InputController';
+import { InputController, isTextInput } from './InputController';
 import { createLaneGroup } from './lane';
 import { Player } from './Player';
 import { Spawner } from './Spawner';
@@ -14,6 +14,11 @@ import { RoundBanner } from '../hud/RoundBanner';
 import { ScoreHud } from '../hud/ScoreHud';
 import { ControlsHud } from '../hud/ControlsHud';
 import { GameOverScreen } from '../hud/GameOverScreen';
+import { ScoreboardPanel } from '../hud/ScoreboardPanel';
+import { NameEntryModal } from '../hud/NameEntryModal';
+import { submitLocal } from '../leaderboard/localBoard';
+import { fetchGlobalTop, isGlobalEnabled, qualifies, submitGlobal } from '../leaderboard/globalBoard';
+import type { GlobalEntry } from '../leaderboard/types';
 import type { Rule } from '../rules/RuleEngine';
 
 /**
@@ -60,6 +65,10 @@ export class Game {
   private readonly scoreHud = new ScoreHud();
   private readonly controlsHud = new ControlsHud();
   private readonly gameOverScreen: GameOverScreen;
+  /** 현재 모드 — 리더보드 키(개인 top5 / 전체 top10). */
+  private readonly difficulty: Difficulty;
+  private readonly scoreboard = new ScoreboardPanel();
+  private readonly nameModal = new NameEntryModal();
   private round = 1;
   private setsPassed = 0;
   private transitionTimer = 0; // >0 이면 라운드 전환 텀(게임 정지)
@@ -73,6 +82,7 @@ export class Game {
     this.scene = scene;
     this.onMenu = onMenu;
     this.onGridRows = onGridRows;
+    this.difficulty = difficulty;
     const cfg = difficultyConfig(difficulty, STANDARD_RULES);
     this.ruleFloor = cfg.ruleFloor;
     this.showRulePanel = cfg.showRulePanel;
@@ -96,6 +106,7 @@ export class Game {
       () => this.reset(),
       () => this.onMenu(),
     );
+    this.gameOverScreen.mountSide(this.scoreboard.element);
 
     this.applyRound(); // 시작 라운드(난이도 ruleFloor)의 룰 활성 + 색 배정 + 패널 + 그리드
     this.onGridRows(this.rows); // 시작 카메라 프레이밍(4×4 모드면 4줄 시점)
@@ -192,11 +203,75 @@ export class Game {
 
   private gameOver(wall: Wall): void {
     this.status = 'gameover';
-    this.gameOverScreen.show(this.score.value, this.round, {
+    const finalScore = this.score.value;
+    this.gameOverScreen.show(finalScore, this.round, {
       before: wall.before ?? wall.snapshot(),
       after: wall.after ?? wall.before ?? wall.snapshot(),
       playerCell: this.player.cell,
     });
+    this.presentScoreboards(finalScore);
+  }
+
+  /**
+   * 게임오버 기록판 채우기 — 개인 top5(로컬·동기) 즉시 + 전체 top10(글로벌·비동기).
+   * 글로벌 진입 자격이면 이름·코멘트 모달을 띄우고 제출 후 보드를 새로고침한다.
+   */
+  private presentScoreboards(finalScore: number): void {
+    const mode = this.difficulty;
+    this.scoreboard.setMode(mode);
+
+    // 개인 top5 — localStorage 즉시 갱신. 이번 기록(at)을 강조.
+    const at = Date.now();
+    const localTop = submitLocal(mode, finalScore, at);
+    this.scoreboard.showLocal(localTop, finalScore > 0 ? at : -1);
+
+    // 전체 top10 — config 없으면 오프라인.
+    if (!isGlobalEnabled) {
+      this.scoreboard.setGlobalOffline();
+      return;
+    }
+    this.scoreboard.setGlobalLoading();
+    void this.loadGlobal(mode, finalScore);
+  }
+
+  /** 글로벌 top10 조회 → 진입 자격이면 이름 모달, 아니면 보드만 표시. */
+  private async loadGlobal(mode: Difficulty, finalScore: number): Promise<void> {
+    let board: GlobalEntry[];
+    try {
+      board = await fetchGlobalTop(mode);
+    } catch {
+      this.scoreboard.setGlobalError();
+      return;
+    }
+    if (this.status !== 'gameover') return; // 그새 재시작/메뉴 → 중단.
+
+    this.scoreboard.showGlobal(board);
+    if (!qualifies(finalScore, board)) return;
+
+    const rank = board.filter((e) => e.score >= finalScore).length + 1;
+    this.nameModal.show(
+      rank,
+      (name, comment) => void this.submitGlobalAndRefresh(mode, finalScore, name, comment),
+      () => {}, // 건너뛰기 — 현재 보드 유지.
+    );
+  }
+
+  /** 글로벌 제출 후 보드 재조회 + 새 기록 강조. */
+  private async submitGlobalAndRefresh(
+    mode: Difficulty,
+    finalScore: number,
+    name: string,
+    comment: string,
+  ): Promise<void> {
+    try {
+      await submitGlobal(mode, finalScore, name, comment);
+      const board = await fetchGlobalTop(mode);
+      if (this.status !== 'gameover') return;
+      const idx = board.findIndex((e) => e.name === name && e.score === finalScore);
+      this.scoreboard.showGlobal(board, idx);
+    } catch {
+      this.scoreboard.setGlobalError();
+    }
   }
 
   reset(): void {
@@ -207,6 +282,7 @@ export class Game {
     this.setsPassed = 0;
     this.transitionTimer = 0;
     this.banner.hide();
+    this.nameModal.hide();
     this.gameOverScreen.hide();
     this.applyRound();
     this.spawner.reset();
@@ -227,9 +303,11 @@ export class Game {
     this.scoreHud.dispose();
     this.controlsHud.dispose();
     this.gameOverScreen.dispose();
+    this.nameModal.dispose();
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (isTextInput(e.target)) return; // 이름/코멘트 입력 중엔 R/M 단축키 무시.
     // R 은 언제든 재시작.
     if (e.key === 'r' || e.key === 'R') {
       this.reset();
