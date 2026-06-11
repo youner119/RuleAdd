@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { checkCollision } from './CollisionSystem';
 import { InputController, isTextInput } from './InputController';
-import { createLaneGroup } from './lane';
+import { COLS, createLaneGroup } from './lane';
 import { Player } from './Player';
 import { Spawner } from './Spawner';
 import type { Wall } from './Wall';
@@ -50,6 +50,8 @@ export class Game {
   private readonly grid4x4: boolean;
   /** 현재 세로 줄 수 (1=4×1, 4=4×4). */
   private rows: number;
+  /** 현재 가로 칸 수 (확장 룰로 4→5…, Phase 1 에선 항상 COLS). */
+  private cols: number = COLS;
   private readonly input: InputController;
   private readonly player: Player;
   private readonly spawner: Spawner;
@@ -93,14 +95,14 @@ export class Game {
 
     this.input = new InputController();
 
-    this.laneGroup = createLaneGroup();
+    this.laneGroup = createLaneGroup(this.cols);
     scene.add(this.laneGroup);
 
-    this.player = new Player(this.rows);
+    this.player = new Player(this.rows, this.cols);
     scene.add(this.player.object);
 
     this.engine = new RuleEngine(RULES);
-    this.spawner = new Spawner(scene, this.engine, cfg.setIntervalSec, this.rows);
+    this.spawner = new Spawner(scene, this.engine, cfg.setIntervalSec, this.rows, this.cols);
     this.panel = new RulePanel(this.showRulePanel);
     this.gameOverScreen = new GameOverScreen(
       () => this.reset(),
@@ -138,7 +140,7 @@ export class Game {
     if (passed > 0) this.addPassedSets(passed);
     if (this.transitionTimer > 0) return; // 막 텀 시작 → 이번 프레임 충돌 스킵
 
-    const hitWall = checkCollision(this.player, this.spawner.activeWalls, this.engine);
+    const hitWall = checkCollision(this.player, this.spawner.activeWalls, this.engine, this.cols);
     this.player.setHit(hitWall !== null); // 겹치는 동안 빨강 피드백
     if (hitWall && !hitWall.lifeTaken) {
       hitWall.lifeTaken = true; // 이 세트는 1회만 차감
@@ -208,6 +210,7 @@ export class Game {
       before: wall.before ?? wall.snapshot(),
       after: wall.after ?? wall.before ?? wall.snapshot(),
       playerCell: this.player.cell,
+      cols: this.cols,
     });
     this.presentScoreboards(finalScore);
   }

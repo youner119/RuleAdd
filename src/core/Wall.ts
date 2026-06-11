@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_SIZE, DIR_NONE, type Dir, cellToX, cellToY, isDir } from './lane';
+import { CELL_SIZE, COLS, DIR_NONE, type Dir, cellToX, cellToY, isDir } from './lane';
 
 /**
  * Wall — 한 "세트"(다가오는 한 줄). Z로 함께 이동하지만, 그 안의 각 블록은
@@ -157,11 +157,14 @@ export class Wall {
   after?: CellSnapshot[];
   /** 성장 중인 확장 블록(룰5) — update 에서 스케일 애니메이션. */
   private readonly growing: { block: Block; dir: Dir; t: number }[] = [];
-  /** 이 세트의 총 칸수(= 그리드 COLS×ROWS). blocked 배열 길이로 결정. */
+  /** 이 세트의 총 칸수(= 그리드 cols×rows). blocked 배열 길이로 결정. */
   private readonly cellTotal: number;
+  /** 가로 칸 수 — 셀 인덱스 → 좌표 변환 기준(확장 룰로 4→5…). */
+  private readonly cols: number;
 
-  constructor(blocked: readonly boolean[]) {
+  constructor(blocked: readonly boolean[], cols = COLS) {
     this.cellTotal = blocked.length;
+    this.cols = cols;
     this.object = new THREE.Group();
     this.blocks = [];
 
@@ -171,7 +174,7 @@ export class Wall {
       const body = new THREE.Mesh(cellGeo, bodyMat);
       body.castShadow = true;
       group.add(body, new THREE.LineSegments(edgeGeo, edgeMat));
-      group.position.set(cellToX(i), cellToY(i), 0);
+      group.position.set(cellToX(i, cols), cellToY(i, cols), 0);
       this.object.add(group);
       this.blocks.push({ cell: i, arrow: DIR_NONE, color: null, group, body });
     }
@@ -218,8 +221,8 @@ export class Wall {
   /** 블록을 새 칸으로 이동(쉬프트 결과). */
   moveBlock(block: Block, newCell: number): void {
     block.cell = newCell;
-    block.group.position.x = cellToX(newCell);
-    block.group.position.y = cellToY(newCell);
+    block.group.position.x = cellToX(newCell, this.cols);
+    block.group.position.y = cellToY(newCell, this.cols);
   }
 
   /**
@@ -235,8 +238,8 @@ export class Wall {
     group.add(body, new THREE.LineSegments(edgeGeo, edgeMat));
     // 시작: 확장벽과 맞닿은 모서리에 납작하게 붙음(자라는 축만 0).
     group.position.set(
-      cellToX(cell) - from.x * (CELL_SIZE / 2),
-      cellToY(cell) - from.y * (CELL_SIZE / 2),
+      cellToX(cell, this.cols) - from.x * (CELL_SIZE / 2),
+      cellToY(cell, this.cols) - from.y * (CELL_SIZE / 2),
       0,
     );
     if (from.x !== 0) group.scale.x = 0.001;
@@ -254,8 +257,8 @@ export class Wall {
       const g = this.growing[i]!;
       g.t += dt / GROW_SEC;
       const s = Math.min(1, g.t);
-      const bx = cellToX(g.block.cell);
-      const by = cellToY(g.block.cell);
+      const bx = cellToX(g.block.cell, this.cols);
+      const by = cellToY(g.block.cell, this.cols);
       // 확장벽 쪽 모서리를 고정한 채 바깥으로 자란다(자라는 축만 스케일).
       if (g.dir.x !== 0) {
         g.block.group.scale.x = Math.max(0.001, s);

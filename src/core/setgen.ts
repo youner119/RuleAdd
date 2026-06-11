@@ -36,7 +36,8 @@ export interface ActiveBehaviors {
 }
 
 export interface SetGenOptions {
-  rows: number; // 세로 줄 수(1=4×1, 4=4×4). 가로는 항상 COLS.
+  rows: number; // 세로 줄 수(1=4×1, 4=4×4).
+  cols?: number; // 가로 칸 수(기본 COLS=4). 확장 룰로 4→5… 로 늘어난다.
   /** 안전칸(구멍 + 통과벽) 수. 기본 1 (= v1 gap 1칸). */
   passableCount?: number;
   active: ActiveBehaviors;
@@ -98,7 +99,8 @@ function displayReps(
  */
 export function generateSet(opts: SetGenOptions): SetPlan {
   const rows = opts.rows;
-  const N = COLS * rows;
+  const cols = opts.cols ?? COLS;
+  const N = cols * rows;
   const passableCount = Math.max(1, Math.min(opts.passableCount ?? 1, N - 1));
   const { passable } = opts.active;
 
@@ -117,7 +119,7 @@ export function generateSet(opts: SetGenOptions): SetPlan {
   const wallCells = [...Array(N).keys()].filter((c) => !gapSet.has(c));
 
   for (let t = 0; t < MAX_TRIES; t++) {
-    const walls = assignOnce(rows, wallCells, passableWalls, opts.active);
+    const walls = assignOnce(rows, cols, wallCells, passableWalls, opts.active);
     if (walls) return { cellCount: N, gaps, walls };
   }
   // 폴백: 전부 제자리 정지 (서로 다른 칸 → 충돌 없음).
@@ -133,6 +135,7 @@ export function generateSet(opts: SetGenOptions): SetPlan {
 /** 단일 풀 그리디 1패스. 막히면 null(상위에서 재시도). */
 function assignOnce(
   rows: number,
+  cols: number,
   wallCells: number[],
   passableWalls: Set<number>,
   active: ActiveBehaviors,
@@ -151,11 +154,11 @@ function assignOnce(
     const isPW = passableWalls.has(cell);
     const selfFree = !occupied.has(cell);
 
-    const validMove = moveDirs.filter((e) => !occupied.has(stepCell(cell, e, rows)));
+    const validMove = moveDirs.filter((e) => !occupied.has(stepCell(cell, e, rows, cols)));
     const validExp =
       expand && !isPW && selfFree
         ? cardinals.filter((d) => {
-            const nb = stepCell(cell, d, rows);
+            const nb = stepCell(cell, d, rows, cols);
             return !occupied.has(nb) && isEatable(nb);
           })
         : [];
@@ -179,7 +182,7 @@ function assignOnce(
           : { t: 'm', e: DIR_NONE };
 
     if (pick.t === 'm') {
-      occupied.add(stepCell(cell, pick.e, rows));
+      occupied.add(stepCell(cell, pick.e, rows, cols));
       if (isPW) result.set(cell, { cell, kind: 'move', num: 4, arrow: pick.e });
       else {
         const rep = randPick(displayReps(pick.e, opposite, stop, cardinals));
@@ -189,13 +192,13 @@ function assignOnce(
       const dirs = [pick.d];
       for (const d of validExp) {
         if (dirEq(d, pick.d)) continue;
-        const nb = stepCell(cell, d, rows);
+        const nb = stepCell(cell, d, rows, cols);
         if (!occupied.has(nb) && isEatable(nb) && Math.random() < MULTI_EXPAND_PROB) dirs.push(d);
       }
       occupied.add(cell);
       result.set(cell, { cell, kind: 'expand', dirs });
       for (const d of dirs) {
-        const nb = stepCell(cell, d, rows);
+        const nb = stepCell(cell, d, rows, cols);
         occupied.add(nb);
         result.set(nb, { cell: nb, kind: 'eaten' });
       }

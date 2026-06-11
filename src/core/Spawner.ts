@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LANE_NEAR_Z, PLAYER_Z, SPAWN_Z, isDir, stepCell } from './lane';
+import { COLS, LANE_NEAR_Z, PLAYER_Z, SPAWN_Z, isDir, stepCell } from './lane';
 import { generateSet, type Num, type SetPlan } from './setgen';
 import { Wall } from './Wall';
 import type { RuleEngine } from '../rules/RuleEngine';
@@ -27,20 +27,29 @@ export class Spawner {
   private readonly wallSpeed: number;
   /** 세로 줄 수 (1=4×1, 4=4×4). 룰6/4×4 모드에서 Game 이 setRows 로 바꾼다. */
   private rows: number;
+  /** 가로 칸 수 (확장 룰로 4→5…). Game 이 setCols 로 바꾼다. */
+  private cols: number;
 
   constructor(
     private readonly scene: THREE.Scene,
     private readonly engine: RuleEngine,
     setIntervalSec: number = DEFAULT_INTERVAL_SEC,
     rows = 1,
+    cols = COLS,
   ) {
     this.wallSpeed = WALL_SPACING / setIntervalSec;
     this.rows = rows;
+    this.cols = cols;
   }
 
   /** 세로 줄 수 갱신(4×4 모드/룰6 확장). 다음 스폰부터 적용. */
   setRows(rows: number): void {
     this.rows = rows;
+  }
+
+  /** 가로 칸 수 갱신(확장 룰). 다음 스폰부터 적용. */
+  setCols(cols: number): void {
+    this.cols = cols;
   }
 
   /** 활성 벽 목록 (T7 충돌 판정에서 사용). */
@@ -106,7 +115,7 @@ export class Spawner {
     const blocks = wall.blocks;
     const finals = blocks.map((b) => {
       const dir = this.engine.resolveBehavior(b).shift; // 2D 방향(룰3 정지 등 반영)
-      return stepCell(b.cell, dir, this.rows); // 끝에서 바깥 → 반대쪽 끝(토러스)
+      return stepCell(b.cell, dir, this.rows, this.cols); // 끝에서 바깥 → 반대쪽 끝(토러스)
     });
 
     // 최종 칸이 모두 distinct → 전부 적용(맞바꿈 포함, 겹침 없음).
@@ -145,7 +154,7 @@ export class Spawner {
     for (const b of [...wall.blocks]) {
       if (!b.expDirs) continue;
       for (const d of b.expDirs) {
-        wall.growBlock(stepCell(b.cell, d, this.rows), d);
+        wall.growBlock(stepCell(b.cell, d, this.rows, this.cols), d);
       }
     }
   }
@@ -156,7 +165,7 @@ export class Spawner {
     for (let t = 0; t < 3 && planSig(plan) === this.lastSig; t++) plan = this.makePlan();
     this.lastSig = planSig(plan);
 
-    const wall = new Wall(blockedFromPlan(plan));
+    const wall = new Wall(blockedFromPlan(plan), this.cols);
     wall.z = SPAWN_Z;
     this.applyPlan(wall, plan);
     wall.before = wall.snapshot(); // 스폰 시점 모습(게임오버 표시용)
@@ -169,6 +178,7 @@ export class Spawner {
   private makePlan(): SetPlan {
     return generateSet({
       rows: this.rows,
+      cols: this.cols,
       passableCount: PASSABLE_COUNT * this.rows, // 4×1=1, 4×4=4 (행마다 안전칸 1)
       active: {
         move: this.engine.isActive(2),

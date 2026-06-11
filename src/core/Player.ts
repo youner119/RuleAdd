@@ -29,13 +29,15 @@ export class Player {
   private currentCol = START_CELL;
   private currentRow = 0;
   private rows: number; // 세로 줄 수 (1=4×1, 4=4×4). 행 이동 clamp 범위.
+  private cols: number; // 가로 칸 수 (확장 룰로 4→5…). 열 이동 clamp + 셀 인덱스 기준.
   private targetX: number;
   private targetY: number;
   private sliding = false;
   private buffered: { dx: number; dy: number } | null = null; // 슬라이드 중 입력 1개 보관
 
-  constructor(rows = 1) {
+  constructor(rows = 1, cols = COLS) {
     this.rows = rows;
+    this.cols = cols;
     this.object = new THREE.Group();
 
     const geo = new THREE.SphereGeometry(PLAYER_RADIUS, 48, 32);
@@ -57,7 +59,7 @@ export class Player {
     outline.scale.setScalar(OUTLINE_SCALE);
 
     this.object.add(outline, body);
-    this.targetX = cellToX(cellIndex(START_CELL, 0));
+    this.targetX = cellToX(cellIndex(START_CELL, 0, this.cols), this.cols);
     this.targetY = this.rowToY(0);
     this.object.position.set(this.targetX, this.targetY, PLAYER_Z);
   }
@@ -84,9 +86,9 @@ export class Player {
     return this.object.position.y;
   }
 
-  /** 현재 칸(플랫 인덱스 row*COLS+col) — 게임오버 "죽은 칸" 표시용. */
+  /** 현재 칸(플랫 인덱스 row*cols+col) — 게임오버 "죽은 칸" 표시용. */
   get cell(): number {
-    return cellIndex(this.currentCol, this.currentRow);
+    return cellIndex(this.currentCol, this.currentRow, this.cols);
   }
 
   /** 세로 줄 수 갱신(4×4 모드/룰6 확장). 행 clamp + Y 기준(바닥/중앙) 재계산. */
@@ -95,6 +97,14 @@ export class Player {
     this.currentRow = Math.min(this.currentRow, rows - 1);
     this.targetY = this.rowToY(this.currentRow); // 4×1↔4×4 전환 시 높이 갱신
     this.object.position.y = this.targetY;
+  }
+
+  /** 가로 칸 수 갱신(확장 룰). 열 clamp + X 위치 재계산. */
+  setCols(cols: number): void {
+    this.cols = cols;
+    this.currentCol = Math.min(this.currentCol, cols - 1);
+    this.targetX = cellToX(cellIndex(this.currentCol, this.currentRow, cols), cols);
+    this.object.position.x = this.targetX;
   }
 
   /**
@@ -110,12 +120,12 @@ export class Player {
   }
 
   private startSlide(dx: number, dy: number): void {
-    const nextCol = Math.max(0, Math.min(COLS - 1, this.currentCol + dx));
+    const nextCol = Math.max(0, Math.min(this.cols - 1, this.currentCol + dx));
     const nextRow = Math.max(0, Math.min(this.rows - 1, this.currentRow + dy));
     if (nextCol === this.currentCol && nextRow === this.currentRow) return; // 경계 밖 — 무시
     this.currentCol = nextCol;
     this.currentRow = nextRow;
-    this.targetX = cellToX(cellIndex(nextCol, nextRow));
+    this.targetX = cellToX(cellIndex(nextCol, nextRow, this.cols), this.cols);
     this.targetY = this.rowToY(nextRow);
     this.sliding = true;
   }
@@ -146,7 +156,7 @@ export class Player {
   reset(): void {
     this.currentCol = START_CELL;
     this.currentRow = 0;
-    this.targetX = cellToX(cellIndex(START_CELL, 0));
+    this.targetX = cellToX(cellIndex(START_CELL, 0, this.cols), this.cols);
     this.targetY = this.rowToY(0);
     this.object.position.set(this.targetX, this.targetY, PLAYER_Z);
     this.sliding = false;

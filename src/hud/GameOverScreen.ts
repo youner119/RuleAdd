@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_SIZE, COLS, LANE_Y, cellToX, cellToY, isDir } from '../core/lane';
+import { CELL_SIZE, LANE_Y, cellToX, cellToY, isDir } from '../core/lane';
 import { PLAYER_RADIUS } from '../core/Player';
 import { Wall, type CellSnapshot } from '../core/Wall';
 
@@ -8,6 +8,7 @@ export interface DeathInfo {
   before: CellSnapshot[];
   after: CellSnapshot[];
   playerCell: number;
+  cols: number; // 그 세트의 가로 칸 수 — 스냅샷에서 행 수 역산·좌표 변환 기준.
 }
 
 /** 미니 3D 리플레이 한 컷 크기(px). */
@@ -148,9 +149,9 @@ export class GameOverScreen {
 
     const died = d.after[d.playerCell]?.blocked ?? false;
     row.append(
-      this.makeReplay('BEFORE', d.before, d.playerCell, false, false),
+      this.makeReplay('BEFORE', d.before, d.playerCell, false, false, d.cols),
       arrow,
-      this.makeReplay('AFTER', d.after, d.playerCell, died, true),
+      this.makeReplay('AFTER', d.after, d.playerCell, died, true, d.cols),
     );
 
     this.deathView.append(heading, row);
@@ -164,6 +165,7 @@ export class GameOverScreen {
     playerCell: number,
     danger: boolean,
     showPlayer: boolean,
+    cols: number,
   ): HTMLDivElement {
     const wrap = document.createElement('div');
     wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px;';
@@ -175,7 +177,7 @@ export class GameOverScreen {
     const img = document.createElement('img');
     img.width = REPLAY_W;
     img.height = REPLAY_H;
-    img.src = this.renderState(cells, playerCell, danger, showPlayer);
+    img.src = this.renderState(cells, playerCell, danger, showPlayer, cols);
     img.style.cssText = `width:${REPLAY_W}px;height:${REPLAY_H}px;border:1.5px solid #eee;border-radius:8px;`;
 
     wrap.append(cap, img);
@@ -195,20 +197,21 @@ export class GameOverScreen {
     playerCell: number,
     danger: boolean,
     showPlayer: boolean,
+    cols: number,
   ): string {
     const { renderer, scene, camera, sphere } = this.ensureRenderer();
 
-    // 그리드 높이(행 수)에 맞춰 정면 약간 위에서 프레이밍 (4×1·4×4 공통).
-    const rows = Math.max(1, Math.round(cells.length / COLS));
+    // 그리드 높이(행 수)에 맞춰 정면 약간 위에서 프레이밍 (4×1·4×4·확장 공통).
+    const rows = Math.max(1, Math.round(cells.length / cols));
     const cy = LANE_Y + CELL_SIZE / 2 + ((rows - 1) * CELL_SIZE) / 2;
     camera.position.set(0, cy + 1.0, 5.5 + (rows - 1) * 1.6);
     camera.lookAt(0, cy, 0);
 
-    const wall = this.buildWall(cells);
+    const wall = this.buildWall(cells, cols);
     scene.add(wall.object);
 
     if (showPlayer) {
-      sphere.position.set(cellToX(playerCell), cellToY(playerCell), 1.2); // 죽은 칸 중앙·벽 앞
+      sphere.position.set(cellToX(playerCell, cols), cellToY(playerCell, cols), 1.2); // 죽은 칸 중앙·벽 앞
       (sphere.material as THREE.MeshStandardMaterial).color.set(danger ? 0xe23b3b : 0x3b6fe2);
       scene.add(sphere);
     }
@@ -221,8 +224,8 @@ export class GameOverScreen {
   }
 
   /** 스냅샷으로 실제 Wall 메시 재구성 — 게임과 동일한 색/화살표/확장 마커. */
-  private buildWall(cells: CellSnapshot[]): Wall {
-    const wall = new Wall(cells.map((c) => c.blocked));
+  private buildWall(cells: CellSnapshot[], cols: number): Wall {
+    const wall = new Wall(cells.map((c) => c.blocked), cols);
     for (const block of wall.blocks) {
       const c = cells[block.cell];
       if (!c) continue;
