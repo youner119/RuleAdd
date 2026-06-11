@@ -185,14 +185,21 @@ export class Wall {
    * (Spawner 쉬프트/확장·CollisionSystem 이 wall.cols/rows 를 쓴다).
    */
   private _cols: number;
+  /**
+   * 이 세트의 경계 wrap 여부 — 스폰 시점에 고정. 생성기(setgen)가 같은 warp
+   * 전제로 겹침0 을 보장했으므로 런타임 쉬프트/확장(Spawner)도 이 값을 따른다.
+   * 기본 false(warp 없음). 향후 warp 룰 활성 시 새로 스폰되는 세트부터 true.
+   */
+  readonly warp: boolean;
 
   get cols(): number {
     return this._cols;
   }
 
-  constructor(blocked: readonly boolean[], cols = COLS) {
+  constructor(blocked: readonly boolean[], cols = COLS, warp = false) {
     this.cellTotal = blocked.length;
     this._cols = cols;
+    this.warp = warp;
     this.object = new THREE.Group();
     this.blocks = [];
 

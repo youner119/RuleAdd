@@ -91,6 +91,7 @@ const DICT = {
     rule_growWall: 'ⓧ 표시 벽은 칠해진 방향으로 늘어난다',
     rule_expand: '맵이 커진다 (한 변 +1)',
     rule_speed: '벽이 5% 빨라진다',
+    rule_warp: '벽이 끝에서 반대쪽으로 넘어간다',
   },
   en: {
     subtitle: 'Dodge the oncoming walls',
@@ -144,6 +145,7 @@ const DICT = {
     rule_growWall: 'ⓧ walls grow toward the painted part',
     rule_expand: 'The map grows (side +1)',
     rule_speed: 'Walls get 5% faster',
+    rule_warp: 'Walls wrap around the edges',
   },
 } as const satisfies Record<Lang, Record<string, string>>;
 

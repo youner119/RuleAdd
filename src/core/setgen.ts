@@ -1,4 +1,4 @@
-import { COLS, DIR_NONE, DIRS4, type Dir, dirEq, negDir, stepCell } from './lane';
+import { COLS, DIR_NONE, DIRS4, type Dir, dirEq, negDir, stepCell, stepCellBounded } from './lane';
 
 /**
  * setgen — 세트 생성기. 활성 룰에 따라 칸별 행동을 충돌0·정답보장으로 배치한다.
@@ -8,9 +8,11 @@ import { COLS, DIR_NONE, DIRS4, type Dir, dirEq, negDir, stepCell } from './lane
  *   num1 그대로(룰2) · num3 정지(룰3) · num4 통과(룰4, 그대로 이동) · num2 반대=비활성
  *   확장(룰5) = 인접 "벽"을 잡아먹음(eaten). 잡아먹는 벽·먹힌 벽 모두 제자리 유지.
  *
- * 4×1(rows=1)·4×4(rows=4) 공통. 방향은 2D(Dir)이고 이동/확장은 stepCell 로
- * 열·행 각각 wrap(토러스). effShift 가 RuleEngine 의 effective 와 일치하므로
- * 생성기가 보장한 겹침0 이 게임 실제 쉬프트에서도 그대로 성립.
+ * 4×1(rows=1)·4×4(rows=4) 공통. 방향은 2D(Dir)이고 이동/확장의 경계 처리는
+ * warp 옵션이 정한다 — 기본 false(경계 밖 방향은 선택하지 않음, 캐주얼 지향),
+ * true 면 wrap(토러스). warp 는 향후 "warp 룰"(tag 'warp') 활성화로 켜질 수 있게
+ * 옵션으로 뚫려 있다. effShift 가 RuleEngine 의 effective 와 일치하므로
+ * 생성기가 보장한 겹침0 이 게임 실제 쉬프트에서도 그대로 성립(세트별 warp 고정).
  */
 
 export type Num = 1 | 2 | 3 | 4;
@@ -41,6 +43,8 @@ export interface SetGenOptions {
   cols?: number; // 가로 칸 수(기본 COLS=4). 확장 룰로 4→5… 로 늘어난다.
   /** 안전칸(구멍 + 통과벽) 수. 기본 1 (= v1 gap 1칸). */
   passableCount?: number;
+  /** 경계 wrap(토러스) 허용 — 기본 false(warp 없음). 향후 warp 룰 활성 시 true. */
+  warp?: boolean;
   active: ActiveBehaviors;
 }
 
@@ -120,7 +124,7 @@ export function generateSet(opts: SetGenOptions): SetPlan {
   const wallCells = [...Array(N).keys()].filter((c) => !gapSet.has(c));
 
   for (let t = 0; t < MAX_TRIES; t++) {
-    const walls = assignOnce(rows, cols, wallCells, passableWalls, opts.active);
+    const walls = assignOnce(rows, cols, opts.warp ?? false, wallCells, passableWalls, opts.active);
     if (walls) return { cellCount: N, gaps, walls };
   }
   // 폴백: 전부 제자리 정지 (서로 다른 칸 → 충돌 없음).
@@ -137,11 +141,15 @@ export function generateSet(opts: SetGenOptions): SetPlan {
 function assignOnce(
   rows: number,
   cols: number,
+  warp: boolean,
   wallCells: number[],
   passableWalls: Set<number>,
   active: ActiveBehaviors,
 ): WallPlan[] | null {
   const { move, opposite, stop, expand } = active;
+  // 경계 처리 — warp 면 wrap(토러스), 아니면 경계 밖 -1(해당 방향 미선택).
+  const step = (cell: number, d: Dir): number =>
+    warp ? stepCell(cell, d, rows, cols) : stepCellBounded(cell, d, rows, cols);
   const occupied = new Set<number>();
   const result = new Map<number, WallPlan>(); // cell → plan
   const isUnactedWall = (cell: number) => wallCells.includes(cell) && !result.has(cell);
@@ -155,12 +163,15 @@ function assignOnce(
     const isPW = passableWalls.has(cell);
     const selfFree = !occupied.has(cell);
 
-    const validMove = moveDirs.filter((e) => !occupied.has(stepCell(cell, e, rows, cols)));
+    const validMove = moveDirs.filter((e) => {
+      const target = step(cell, e);
+      return target >= 0 && !occupied.has(target); // warp 아니면 경계 밖 이동은 생성하지 않음
+    });
     const validExp =
       expand && !isPW && selfFree
         ? cardinals.filter((d) => {
-            const nb = stepCell(cell, d, rows, cols);
-            return !occupied.has(nb) && isEatable(nb);
+            const nb = step(cell, d);
+            return nb >= 0 && !occupied.has(nb) && isEatable(nb);
           })
         : [];
 
@@ -183,7 +194,7 @@ function assignOnce(
           : { t: 'm', e: DIR_NONE };
 
     if (pick.t === 'm') {
-      occupied.add(stepCell(cell, pick.e, rows, cols));
+      occupied.add(step(cell, pick.e)); // validMove 에서 검증된 방향 — 항상 ≥0
       if (isPW) result.set(cell, { cell, kind: 'move', num: 4, arrow: pick.e });
       else {
         const rep = randPick(displayReps(pick.e, opposite, stop, cardinals));
@@ -193,13 +204,13 @@ function assignOnce(
       const dirs = [pick.d];
       for (const d of validExp) {
         if (dirEq(d, pick.d)) continue;
-        const nb = stepCell(cell, d, rows, cols);
+        const nb = step(cell, d);
         if (!occupied.has(nb) && isEatable(nb) && Math.random() < MULTI_EXPAND_PROB) dirs.push(d);
       }
       occupied.add(cell);
       result.set(cell, { cell, kind: 'expand', dirs });
       for (const d of dirs) {
-        const nb = stepCell(cell, d, rows, cols);
+        const nb = step(cell, d); // validExp 에서 검증된 방향 — 항상 ≥0
         occupied.add(nb);
         result.set(nb, { cell: nb, kind: 'eaten' });
       }

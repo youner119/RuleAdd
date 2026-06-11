@@ -165,6 +165,24 @@ export function makeSpeedRule(id: number): Rule {
   };
 }
 
+/**
+ * warp 마커 룰 팩토리 — 활성 시 벽 쉬프트/확장이 경계에서 반대쪽으로 넘어간다
+ * (wrap/토러스). 현재는 어떤 풀에도 없음(기본 = warp 없음, 캐주얼) — 향후
+ * 진행 풀(makeProgressionRule)이나 RULES 에 넣으면 Game.applyRound 의
+ * 'warp' 태그 집계 → Spawner.setWarp 경로로 그대로 동작한다(세트별 고정).
+ */
+export function makeWarpRule(id: number): Rule {
+  return {
+    id,
+    get label() {
+      return t('rule_warp');
+    },
+    tag: 'warp',
+    appliesTo: () => false,
+    modify: (behavior) => behavior,
+  };
+}
+
 /** 룰6 — 확장: 한 변 +1 (1차원 4칸 → 5칸, 2차원 4×4 → 5×5). 라운드6 활성. */
 const ruleExpand = makeExpandRule(6);
 

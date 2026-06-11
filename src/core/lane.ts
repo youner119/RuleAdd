@@ -72,7 +72,22 @@ export function isDir(d: Dir): boolean {
 export function negDir(d: Dir): Dir {
   return { x: -d.x, y: -d.y };
 }
-/** 셀에서 dir 방향 한 칸 이웃 — 열·행 각각 wrap(토러스). rows = 세로 줄 수, cols = 가로 칸 수. */
+/**
+ * 셀에서 dir 방향 한 칸 이웃 — 경계 밖이면 -1 (warp 없음).
+ * 캐주얼 지향: 끝 블록이 반대쪽 끝으로 넘어가는 의외성을 없앤다.
+ * 생성기(setgen)는 -1 방향을 아예 선택하지 않고, 런타임(Spawner)은 -1 을 제자리로 처리.
+ */
+export function stepCellBounded(cell: number, d: Dir, rows: number, cols = COLS): number {
+  const col = colOf(cell, cols) + d.x;
+  const row = rowOf(cell, cols) + d.y;
+  if (col < 0 || col >= cols || row < 0 || row >= rows) return -1;
+  return cellIndex(col, row, cols);
+}
+
+/**
+ * [비활성 — 기능 보존] wrap(토러스) 버전 — 열·행 각각 끝에서 반대쪽으로 넘어간다.
+ * warp 를 되살리려면 호출부(setgen/Spawner)를 이 함수로 되돌리면 된다.
+ */
 export function stepCell(cell: number, d: Dir, rows: number, cols = COLS): number {
   const col = (((colOf(cell, cols) + d.x) % cols) + cols) % cols;
   const row = (((rowOf(cell, cols) + d.y) % rows) + rows) % rows;

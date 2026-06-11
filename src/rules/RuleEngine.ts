@@ -40,8 +40,8 @@ export interface Rule {
   readonly targetColor?: string | null;
   /** 색 룰의 대상 색 설정(null=초기화). 활성화 시점에 배정. */
   setColor?(color: string | null): void;
-  /** 진행(progression) 마커 — 'speed'(벽 5% 가속) / 'expand'(한 변 +1). Game 이 집계. */
-  readonly tag?: 'speed' | 'expand';
+  /** 진행(progression) 마커 — 'speed'(벽 5% 가속) / 'expand'(한 변 +1) / 'warp'(경계 wrap). Game 이 집계. */
+  readonly tag?: 'speed' | 'expand' | 'warp';
   /** 색 룰의 행동 종류 — 생성기 활성 판단·색 매핑(Spawner)에 사용. */
   readonly behaviorKind?: 'stop' | 'pass' | 'opposite';
 }

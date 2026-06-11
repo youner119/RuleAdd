@@ -242,10 +242,12 @@ export class Game {
     }
   }
 
-  /** 활성 'speed' 마커 수 → 벽 속도 배율(누적 ×1.05). */
+  /** 활성 'speed' 마커 수 → 벽 속도 배율(누적 ×1.05). 'warp' 태그도 함께 반영. */
   private applySpeed(): void {
     const n = this.engine.activeRules.filter((r) => r.tag === 'speed').length;
     this.spawner.setSpeedMult(1.05 ** n);
+    // warp 룰(향후) — 활성 시 다음 스폰 세트부터 경계 wrap. 기본은 없음(캐주얼).
+    this.spawner.setWarp(this.engine.activeRules.some((r) => r.tag === 'warp'));
   }
 
   /** 그리드 한 변 상한 — 확장 마커가 더 쌓여도 이 이상 커지지 않는다. */

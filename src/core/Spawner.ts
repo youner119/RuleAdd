@@ -1,5 +1,14 @@
 import * as THREE from 'three';
-import { COLS, LANE_NEAR_Z, PLAYER_Z, SPAWN_Z, isDir, stepCell } from './lane';
+import {
+  COLS,
+  LANE_NEAR_Z,
+  PLAYER_Z,
+  SPAWN_Z,
+  type Dir,
+  isDir,
+  stepCell,
+  stepCellBounded,
+} from './lane';
 import { generateSet, type Num, type SetPlan } from './setgen';
 import { Wall } from './Wall';
 import type { RuleEngine } from '../rules/RuleEngine';
@@ -30,6 +39,8 @@ export class Spawner {
   private rows: number;
   /** 가로 칸 수 (확장 룰로 4→5…). Game 이 setCols 로 바꾼다. */
   private cols: number;
+  /** 경계 wrap 허용 — 기본 false(warp 없음). 향후 warp 룰 활성 시 Game 이 setWarp. */
+  private warp = false;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -51,6 +62,18 @@ export class Spawner {
   /** 현재 벽 이동 속도(월드 단위/초) — 타이틀 플라이바이 등 연출 속도 기준. */
   get wallSpeed(): number {
     return this.baseSpeed * this.speedMult;
+  }
+
+  /** 경계 wrap 갱신(향후 warp 룰) — 다음 스폰 세트부터 적용(세트별 고정). */
+  setWarp(warp: boolean): void {
+    this.warp = warp;
+  }
+
+  /** 세트(wall)의 경계 처리 — 스폰 시점 warp 에 따라 wrap/경계(-1) 선택. */
+  private static step(wall: Wall, cell: number, d: Dir): number {
+    return wall.warp
+      ? stepCell(cell, d, wall.rows, wall.cols)
+      : stepCellBounded(cell, d, wall.rows, wall.cols);
   }
 
   /** 세로 줄 수 갱신(2차원 모드 확장 4→5). 다음 스폰부터 적용. */
@@ -139,8 +162,9 @@ export class Spawner {
     const blocks = wall.blocks;
     const finals = blocks.map((b) => {
       const dir = this.engine.resolveBehavior(b).shift; // 2D 방향(룰3 정지 등 반영)
-      // 세트 자신의 스폰 시점 그리드 기준 — 확장 직후 날아오던 옛 세트도 올바르게 이동.
-      return stepCell(b.cell, dir, wall.rows, wall.cols); // 끝에서 바깥 → 반대쪽 끝(토러스)
+      // 세트 자신의 스폰 시점 그리드·warp 기준 — 확장 직후 옛 세트도 올바르게 이동.
+      const target = Spawner.step(wall, b.cell, dir);
+      return target >= 0 ? target : b.cell; // 경계 밖(warp 아님) → 제자리
     });
 
     // 최종 칸이 모두 distinct → 전부 적용(맞바꿈 포함, 겹침 없음).
@@ -179,7 +203,8 @@ export class Spawner {
     for (const b of [...wall.blocks]) {
       if (!b.expDirs) continue;
       for (const d of b.expDirs) {
-        wall.growBlock(stepCell(b.cell, d, wall.rows, wall.cols), d);
+        const nb = Spawner.step(wall, b.cell, d);
+        if (nb >= 0) wall.growBlock(nb, d); // 경계 밖(warp 아님)으로는 자라지 않음
       }
     }
   }
@@ -190,7 +215,7 @@ export class Spawner {
     for (let t = 0; t < 3 && planSig(plan) === this.lastSig; t++) plan = this.makePlan();
     this.lastSig = planSig(plan);
 
-    const wall = new Wall(blockedFromPlan(plan), this.cols);
+    const wall = new Wall(blockedFromPlan(plan), this.cols, this.warp);
     wall.z = SPAWN_Z;
     this.applyPlan(wall, plan);
     wall.before = wall.snapshot(); // 스폰 시점 모습(게임오버 표시용)
@@ -211,6 +236,7 @@ export class Spawner {
     return generateSet({
       rows: this.rows,
       cols: this.cols,
+      warp: this.warp,
       // 안전칸 = floor(총칸/5), 최소 1 — 4×1=1, 4×4=3, 5×5=5 (확장 룰 설계 공식).
       passableCount: Math.max(1, Math.floor((this.cols * this.rows) / 5)),
       active: {
