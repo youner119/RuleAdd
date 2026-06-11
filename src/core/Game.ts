@@ -104,7 +104,7 @@ export class Game {
     scene.add(this.laneGroup);
 
     this.player = new Player(this.rows, this.cols);
-    scene.add(this.player.object);
+    scene.add(this.player.object, this.player.guide); // guide = 2차원 행/열 가이드 점선(1차원에선 숨김)
 
     this.engine = new RuleEngine(RULES);
     this.spawner = new Spawner(scene, this.engine, cfg.setIntervalSec, this.rows, this.cols);
@@ -392,7 +392,7 @@ export class Game {
     this.input.dispose();
     this.spawner.reset(); // 벽 제거
     this.removeTitle();
-    this.scene.remove(this.laneGroup, this.player.object);
+    this.scene.remove(this.laneGroup, this.player.object, this.player.guide);
     this.panel.dispose();
     this.banner.dispose();
     this.scoreHud.dispose();

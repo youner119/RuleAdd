@@ -22,9 +22,22 @@ const OUTLINE_COLOR = 0x222222;
 const SLIDE_SPEED = 12;
 const SNAP_THRESHOLD = 0.01;
 
+/** 행/열 가이드 점선 — 색·투명도·점선 패턴(- - - - 느낌, 은은하게). */
+const GUIDE_COLOR = 0xaaaaaa;
+const GUIDE_OPACITY = 0.28;
+const GUIDE_DASH = 0.2;
+const GUIDE_GAP = 0.26;
+
 export class Player {
   /** 씬에 추가하는 루트. */
   readonly object: THREE.Group;
+  /**
+   * 행/열 가이드 점선(2차원 전용) — 플레이어 평면(z=PLAYER_Z)에서 구의 양 끝
+   * (위/아래·좌/우 가장자리)에 닿는 반투명 점선 4줄. 구가 점선 레일 사이에 끼어
+   * 있는 모양으로 내 행/열을 알려준다(Y 위치 인지 보조).
+   * 구를 따라 움직이므로 별도 씬 오브젝트(Game 이 scene 에 추가). rows=1 이면 숨김.
+   */
+  readonly guide: THREE.LineSegments;
   private readonly bodyMat: THREE.MeshStandardMaterial;
   private currentCol = START_CELL;
   private currentRow = 0;
@@ -62,6 +75,45 @@ export class Player {
     this.targetX = cellToX(cellIndex(START_CELL, 0, this.cols), this.cols);
     this.targetY = this.rowToY(0);
     this.object.position.set(this.targetX, this.targetY, PLAYER_Z);
+
+    // 가이드 점선 — 가로 2줄(0-3)·세로 2줄(4-7), 총 4선분. 매 프레임 위치 갱신.
+    const guideGeo = new THREE.BufferGeometry();
+    guideGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(24), 3));
+    this.guide = new THREE.LineSegments(
+      guideGeo,
+      new THREE.LineDashedMaterial({
+        color: GUIDE_COLOR,
+        transparent: true,
+        opacity: GUIDE_OPACITY,
+        dashSize: GUIDE_DASH,
+        gapSize: GUIDE_GAP,
+      }),
+    );
+    this.refreshGuide();
+  }
+
+  /** 가이드 점선 갱신 — 구 양 끝에 닿는 가로/세로 점선 4줄을 다시 깐다(2차원 전용). */
+  private refreshGuide(): void {
+    this.guide.visible = this.rows > 1;
+    if (!this.guide.visible) return;
+    const xMin = cellToX(0, this.cols) - CELL_SIZE / 2;
+    const xMax = cellToX(this.cols - 1, this.cols) + CELL_SIZE / 2;
+    const yMin = LANE_Y;
+    const yMax = LANE_Y + this.rows * CELL_SIZE;
+    const px = this.object.position.x;
+    const py = this.object.position.y;
+    const r = CELL_SIZE / 2; // 칸 경계에 선이 깔린다 — "4×4 의 어느 칸인지"가 읽히게
+    const pos = this.guide.geometry.getAttribute('position') as THREE.BufferAttribute;
+    pos.setXYZ(0, xMin, py + r, PLAYER_Z); // 가로 점선(내 행 위 경계)
+    pos.setXYZ(1, xMax, py + r, PLAYER_Z);
+    pos.setXYZ(2, xMin, py - r, PLAYER_Z); // 가로 점선(내 행 아래 경계)
+    pos.setXYZ(3, xMax, py - r, PLAYER_Z);
+    pos.setXYZ(4, px - r, yMin, PLAYER_Z); // 세로 점선(내 열 왼쪽 경계)
+    pos.setXYZ(5, px - r, yMax, PLAYER_Z);
+    pos.setXYZ(6, px + r, yMin, PLAYER_Z); // 세로 점선(내 열 오른쪽 경계)
+    pos.setXYZ(7, px + r, yMax, PLAYER_Z);
+    pos.needsUpdate = true;
+    this.guide.computeLineDistances(); // 점선 패턴은 선분 거리 기반 — 위치 갱신마다 재계산
   }
 
   /**
@@ -97,6 +149,7 @@ export class Player {
     this.currentRow = Math.min(this.currentRow, rows - 1);
     this.targetY = this.rowToY(this.currentRow); // 4×1↔4×4 전환 시 높이 갱신
     this.object.position.y = this.targetY;
+    this.refreshGuide();
   }
 
   /** 가로 칸 수 갱신(확장 룰). 열 clamp + 새 X 로 슬라이드(반 칸 이동 애니메이션). */
@@ -105,6 +158,7 @@ export class Player {
     this.currentCol = Math.min(this.currentCol, cols - 1);
     this.targetX = cellToX(cellIndex(this.currentCol, this.currentRow, cols), cols);
     if (Math.abs(this.targetX - this.object.position.x) > SNAP_THRESHOLD) this.sliding = true;
+    this.refreshGuide();
   }
 
   /**
@@ -130,8 +184,9 @@ export class Player {
     this.sliding = true;
   }
 
-  /** 한 프레임 업데이트 — 슬라이드 중이면 목표(X,Y) 쪽으로 이동. */
+  /** 한 프레임 업데이트 — 슬라이드 중이면 목표(X,Y) 쪽으로 이동(+실금 따라옴). */
   update(dt: number): void {
+    this.refreshGuide(); // 직전 프레임 이동분 반영(슬라이드 중 실금이 함께 따라온다)
     if (!this.sliding) return;
     const pos = this.object.position;
     const dx = this.targetX - pos.x;
@@ -162,6 +217,7 @@ export class Player {
     this.sliding = false;
     this.buffered = null;
     this.setHit(false);
+    this.refreshGuide();
   }
 
   /** 충돌 표시 — true=빨강, false=흰색. */
