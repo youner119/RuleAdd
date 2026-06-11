@@ -9,20 +9,42 @@ import type { BlockBehavior, Rule, RuleBlock } from './RuleEngine';
  * "화살표 반대로 이동"(구 룰3)은 비활성 — DISABLED_RULES 참조(기능 보존).
  */
 
-/** 색 풀 — 흰 배경에 또렷한 12색(CSS hex). 매 런 3색이 룰3/4/5 로 뽑힘. */
+/**
+ * 색 풀 — 흰 배경에 또렷한 30색(CSS hex). 매 런 3색이 룰3/4/5 로 뽑힘.
+ * 색상환(hue)을 고르게 한 바퀴 돌도록 배열해 한 런에 뽑히는 3색이 서로
+ * 충분히 구분되게 한다. 모두 흰 배경 대비 충분히 진한 톤(연한 색 배제).
+ */
 export const COLOR_POOL: readonly string[] = [
-  '#e23b3b', // red
-  '#3b6fe2', // blue
-  '#2ca24c', // green
-  '#f2941f', // orange
-  '#9b3bd4', // purple
-  '#10a89e', // teal
-  '#e23b9e', // pink
-  '#8a5a2b', // brown
+  '#d11f1f', // red
+  '#e0531a', // red-orange
+  '#e07b15', // orange
+  '#c98f00', // amber
+  '#9a8410', // mustard
+  '#6f8a14', // olive
+  '#4a9a1f', // yellow-green
+  '#1f9a3f', // green
+  '#0e8a5a', // emerald
+  '#0a8a80', // teal
+  '#1090b0', // cyan
+  '#1f7fd4', // sky blue
+  '#2a5fd0', // blue
+  '#3247c4', // royal blue
+  '#4763b5', // slate blue
+  '#5a3bc4', // indigo
+  '#7a2fc4', // violet
+  '#9b2fd4', // purple
+  '#b81fb0', // magenta
+  '#c01f8a', // fuchsia
+  '#d4286b', // rose
+  '#c0143a', // crimson
+  '#8a1f2d', // maroon
+  '#7a1f5a', // plum
+  '#5a3b8a', // deep indigo
   '#2b3a8a', // navy
-  '#b59000', // gold
-  '#d45a13', // burnt orange
-  '#5a3b8a', // indigo
+  '#2a6a64', // deep teal
+  '#3a6a2a', // deep green
+  '#8a5a2b', // brown
+  '#a8431a', // rust
 ];
 
 /** 룰1 — 벽에 닿으면 죽는다 · a/d 이동. base. */
