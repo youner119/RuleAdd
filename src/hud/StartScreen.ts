@@ -1,10 +1,12 @@
 import type { Difficulty } from '../core/difficulty';
+import { ScoreboardScreen } from './ScoreboardScreen';
 
 /**
  * StartScreen — 모드 선택 시작 화면(HTML 오버레이, 가로 카드 5장).
  * 쉬움/보통/어려움/블라인드/4×4 중 하나를 고른다. 4×4 는 처음부터
  * 위아래(wasd)로도 피하는 모드. 흰 배경 + 검은 테두리 미학.
  * 카드 선택 시 onSelect(모드) 호출 후 사라진다.
+ * 카드 아래 "🏆 점수판" 버튼으로 전체 랭킹 화면(ScoreboardScreen)을 연다.
  */
 
 interface ModeCard {
@@ -23,8 +25,11 @@ const MODES: readonly ModeCard[] = [
 
 export class StartScreen {
   private readonly root: HTMLDivElement;
+  private readonly scoreboard: ScoreboardScreen;
 
   constructor(mount: HTMLElement, onSelect: (difficulty: Difficulty) => void) {
+    this.scoreboard = new ScoreboardScreen(mount);
+
     this.root = document.createElement('div');
     this.root.style.cssText = [
       'position:fixed',
@@ -56,6 +61,24 @@ export class StartScreen {
       'display:grid;grid-template-columns:repeat(3,150px);gap:20px;justify-content:center;';
     for (const mode of MODES) cards.appendChild(this.makeCard(mode, onSelect));
     this.root.appendChild(cards);
+
+    const scoreboardBtn = document.createElement('button');
+    scoreboardBtn.textContent = '🏆 점수판';
+    scoreboardBtn.style.cssText = [
+      'width:320px',
+      'padding:14px 0',
+      'border:2px solid #222',
+      'border-radius:10px',
+      'background:#fff',
+      'font:700 17px/1 system-ui,sans-serif',
+      'color:#222',
+      'cursor:pointer',
+      'transition:background 0.12s',
+    ].join(';');
+    scoreboardBtn.addEventListener('mouseenter', () => (scoreboardBtn.style.background = '#f0f0f0'));
+    scoreboardBtn.addEventListener('mouseleave', () => (scoreboardBtn.style.background = '#fff'));
+    scoreboardBtn.addEventListener('click', () => this.scoreboard.open());
+    this.root.appendChild(scoreboardBtn);
 
     mount.appendChild(this.root);
   }
@@ -97,6 +120,7 @@ export class StartScreen {
   }
 
   hide(): void {
+    this.scoreboard.dispose();
     this.root.remove();
   }
 }
