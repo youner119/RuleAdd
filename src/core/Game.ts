@@ -7,7 +7,7 @@ import { Spawner } from './Spawner';
 import type { Wall } from './Wall';
 import { ScoreSystem } from './ScoreSystem';
 import { RuleEngine } from '../rules/RuleEngine';
-import { RULES, ensureActiveRuleColors, resetRuleColors } from '../rules/rules';
+import { RULES, ensureActiveRuleColors, makeProgressionRule, resetRuleColors } from '../rules/rules';
 import { type Difficulty, difficultyConfig } from './difficulty';
 import { RulePanel } from '../hud/RulePanel';
 import { RoundBanner } from '../hud/RoundBanner';
@@ -193,21 +193,45 @@ export class Game {
 
   /** 활성 룰 수 = max(round, ruleFloor) — 어려움은 처음부터 전부(확장 포함). */
   private applyRound(): void {
-    this.engine.activateUpTo(Math.max(this.round, this.ruleFloor));
+    const upTo = Math.max(this.round, this.ruleFloor);
+    this.ensureDynamicRules(upTo);
+    this.engine.activateUpTo(upTo);
     ensureActiveRuleColors(this.engine.activeRules);
     this.panel.render(this.engine.activeRules);
+    this.applySpeed();
     this.refreshGridSize();
   }
 
   /**
+   * 정적 룰(1~6)이 끝난 라운드의 동적(진행) 룰을 라운드당 1개 생성(id = 라운드).
+   * 내용은 makeProgressionRule(속도 +5% / 한 변 +1 / 색 룰) — 모든 난이도 공통.
+   * 이미 만든 라운드는 건너뛴다(멱등). 재시작 시 truncate 로 비우고 새로 굴린다.
+   */
+  private ensureDynamicRules(upTo: number): void {
+    for (let r = this.engine.ruleCount + 1; r <= upTo; r++) {
+      this.engine.addRule(makeProgressionRule(r));
+    }
+  }
+
+  /** 활성 'speed' 마커 수 → 벽 속도 배율(누적 ×1.05). */
+  private applySpeed(): void {
+    const n = this.engine.activeRules.filter((r) => r.tag === 'speed').length;
+    this.spawner.setSpeedMult(1.05 ** n);
+  }
+
+  /** 그리드 한 변 상한 — 확장 마커가 더 쌓여도 이 이상 커지지 않는다. */
+  private static readonly MAX_SIDE = 10;
+
+  /**
    * 활성 룰 → 그리드 크기 전환(+레인·카메라).
-   *  - 한 변(side) = 4 + 확장 룰(룰6) 활성 시 +1. (v2: 룰 추가로 최대 10까지 같은 패턴.)
+   *  - 한 변(side) = 4 + 활성 'expand' 마커 수(룰6 + 진행 15·25·35…), 최대 10.
    *  - 세로(rows) = 2차원 모드(grid4x4)면 side, 아니면 1줄 — 런 중 1↔2차원 전환 없음.
    *  - 가로(cols)가 바뀌면 레인(바닥 폭·경계선)도 재구성한다.
    * 이미 날아오던 세트는 자기 스폰 시점 그리드(wall.cols/rows)로 계속 동작.
    */
   private refreshGridSize(): void {
-    const side = COLS + (this.engine.isActive(6) ? 1 : 0);
+    const expands = this.engine.activeRules.filter((r) => r.tag === 'expand').length;
+    const side = Math.min(Game.MAX_SIDE, COLS + expands);
     const rows = this.grid4x4 ? side : 1;
     if (rows === this.rows && side === this.cols) return;
     const colsChanged = side !== this.cols;
@@ -315,6 +339,7 @@ export class Game {
 
   reset(): void {
     resetRuleColors(); // 색 초기화 → 라운드 진행으로 다시 배정
+    this.engine.truncate(RULES.length); // 동적(진행) 룰 제거 — 다음 런에서 새로 굴림
     this.score.reset();
     this.lives = this.maxLives;
     this.round = this.ruleFloor; // 시작 라운드(어려움=모든 룰 라운드)로 복귀

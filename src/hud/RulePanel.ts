@@ -58,7 +58,8 @@ export class RulePanel {
 
     const num = document.createElement('span');
     num.textContent = String(rule.id);
-    num.style.cssText = 'flex:0 0 14px;text-align:center;font-weight:700;color:#444;';
+    // 진행(동적) 룰은 id = 라운드(두 자리) — 폭 여유 있게.
+    num.style.cssText = 'flex:0 0 20px;text-align:center;font-weight:700;color:#444;';
 
     const swatch = document.createElement('span');
     swatch.style.cssText =

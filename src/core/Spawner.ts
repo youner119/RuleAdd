@@ -22,8 +22,10 @@ export class Spawner {
   private readonly walls: Wall[] = [];
   private distSinceSpawn = WALL_SPACING; // 첫 프레임에 즉시 첫 벽 스폰
   private lastSig = ''; // 직전 패턴 (연속 동일 회피)
-  /** 벽 이동 속도(월드 단위/초). 세트 간격(초) = WALL_SPACING / 이 값. */
-  private readonly wallSpeed: number;
+  /** 기본 벽 이동 속도(월드 단위/초). 세트 간격(초) = WALL_SPACING / 이 값. */
+  private readonly baseSpeed: number;
+  /** 진행(속도 룰) 누적 배율 — Game 이 setSpeedMult 로 갱신(10·20·30… 라운드 ×1.05). */
+  private speedMult = 1;
   /** 세로 줄 수 (1차원=1, 2차원=4·확장 시 5). Game 이 setRows 로 바꾼다. */
   private rows: number;
   /** 가로 칸 수 (확장 룰로 4→5…). Game 이 setCols 로 바꾼다. */
@@ -36,9 +38,14 @@ export class Spawner {
     rows = 1,
     cols = COLS,
   ) {
-    this.wallSpeed = WALL_SPACING / setIntervalSec;
+    this.baseSpeed = WALL_SPACING / setIntervalSec;
     this.rows = rows;
     this.cols = cols;
+  }
+
+  /** 진행 속도 배율 갱신(라운드 10·20·30… 누적 ×1.05). 비행 중 세트에도 즉시 적용. */
+  setSpeedMult(mult: number): void {
+    this.speedMult = mult;
   }
 
   /** 세로 줄 수 갱신(2차원 모드 확장 4→5). 다음 스폰부터 적용. */
@@ -83,7 +90,7 @@ export class Spawner {
    * @returns 이 프레임에 플레이어를 지나친(통과한) 세트 수.
    */
   update(dt: number, speedMul = 1): number {
-    const dz = this.wallSpeed * speedMul * dt;
+    const dz = this.baseSpeed * this.speedMult * speedMul * dt;
 
     // 이동 + 룰2 쉬프트/룰5 확장 트리거 (같은 타이밍)
     for (const w of this.walls) {
@@ -187,6 +194,13 @@ export class Spawner {
     this.walls.push(wall);
   }
 
+  /** 해당 행동 종류의 색 룰이 활성이고 색까지 배정됐는가(생성기 활성 판단). */
+  private hasColoredKind(kind: 'stop' | 'pass' | 'opposite'): boolean {
+    return this.engine.activeRules.some(
+      (r) => r.behaviorKind === kind && typeof r.targetColor === 'string',
+    );
+  }
+
   /** 활성 룰(라운드)에서 생성기 파라미터를 도출해 세트를 생성. */
   private makePlan(): SetPlan {
     return generateSet({
@@ -196,9 +210,11 @@ export class Spawner {
       passableCount: Math.max(1, Math.floor((this.cols * this.rows) / 5)),
       active: {
         move: this.engine.isActive(2),
-        opposite: false, // "반대 방향" 룰 비활성화 — 기능 코드는 setgen/rules 에 보존
-        stop: this.engine.isActive(3),
-        passable: this.engine.isActive(4),
+        // 색 행동은 종류(behaviorKind) 기준 — 진행(동적) 색 룰도 자동 반영.
+        // 반대 방향은 15라운드부터 진행 룰로 추가될 수 있다.
+        opposite: this.hasColoredKind('opposite'),
+        stop: this.hasColoredKind('stop'),
+        passable: this.hasColoredKind('pass'),
         expand: this.engine.isActive(5),
       },
     });
@@ -225,11 +241,19 @@ export class Spawner {
     }
   }
 
-  /** 행동 num → 룰 색. num1=색 없음, num3→룰3(정지) / num4→룰4(통과) 의 런 배정색. num2(반대)=비활성. */
+  /**
+   * 행동 num → 색. num1=색 없음. num3(정지)/num4(통과)/num2(반대)는 그 행동
+   * 종류의 활성 색 룰 중 하나를 무작위 선택 — 같은 행동의 색이 여러 개(진행
+   * 동적 룰)면 세트마다 섞여 나온다.
+   */
   private colorForNum(num: Num): string | null {
-    if (num === 1) return null;
-    const rule = this.engine.activeRules.find((r) => r.id === num);
-    return rule?.targetColor ?? null;
+    const kind = num === 3 ? 'stop' : num === 4 ? 'pass' : num === 2 ? 'opposite' : null;
+    if (!kind) return null;
+    const colors = this.engine.activeRules
+      .filter((r) => r.behaviorKind === kind && typeof r.targetColor === 'string')
+      .map((r) => r.targetColor as string);
+    if (colors.length === 0) return null;
+    return colors[Math.floor(Math.random() * colors.length)] as string;
   }
 }
 
