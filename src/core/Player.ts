@@ -11,7 +11,7 @@ import { COLS, CELL_SIZE, cellIndex, cellToX, LANE_Y, PLAYER_Z, START_CELL } fro
  * 이동 = 슬라이드 스냅: wasd 최초 press 시 목표 칸(열 ±1 / 행 ±1)을 지정하고
  * SLIDE_SPEED 로 부드럽게 슬라이드한 뒤 칸 중앙에 정확히 정지.
  * 슬라이드 중 추가 입력은 1개만 버퍼링(Game 이 consumeMove 로 처리).
- * 세로(행) 이동은 rows>1(4×4 모드/룰6) 일 때만 의미가 있다 — rows=1 이면 w/s 무동작.
+ * 세로(행) 이동은 rows>1(2차원 모드) 일 때만 의미가 있다 — rows=1 이면 w/s 무동작.
  */
 
 export const PLAYER_RADIUS = 0.3; // 셀 1단위보다 작게(지름 0.6) — 충돌 판정 여유.
@@ -91,7 +91,7 @@ export class Player {
     return cellIndex(this.currentCol, this.currentRow, this.cols);
   }
 
-  /** 세로 줄 수 갱신(4×4 모드/룰6 확장). 행 clamp + Y 기준(바닥/중앙) 재계산. */
+  /** 세로 줄 수 갱신(2차원 모드 확장 4→5). 행 clamp + Y 기준(바닥/중앙) 재계산. */
   setRows(rows: number): void {
     this.rows = rows;
     this.currentRow = Math.min(this.currentRow, rows - 1);

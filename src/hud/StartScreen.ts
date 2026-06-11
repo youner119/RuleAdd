@@ -3,8 +3,8 @@ import { ScoreboardScreen } from './ScoreboardScreen';
 
 /**
  * StartScreen — 모드 선택 시작 화면(HTML 오버레이, 가로 카드 5장).
- * 쉬움/보통/어려움/블라인드/4×4 중 하나를 고른다. 4×4 는 처음부터
- * 위아래(wasd)로도 피하는 모드. 흰 배경 + 검은 테두리 미학.
+ * 쉬움/보통/어려움/블라인드/2차원 중 하나를 고른다. 2차원(id '4x4')은
+ * 처음부터 4×4 에서 위아래(wasd)로도 피하는 모드. 흰 배경 + 검은 테두리 미학.
  * 카드 선택 시 onSelect(모드) 호출 후 사라진다.
  * 카드 아래 "🏆 점수판" 버튼으로 전체 랭킹 화면(ScoreboardScreen)을 연다.
  */
@@ -18,9 +18,9 @@ interface ModeCard {
 const MODES: readonly ModeCard[] = [
   { id: 'easy', name: '쉬움', desc: '느린 속도 · 목숨 5\n룰 점진 추가' },
   { id: 'normal', name: '보통', desc: '기본 속도 · 목숨 3\n룰 점진 추가' },
-  { id: 'hard', name: '어려움', desc: '빠른 속도 · 목숨 3\n룰을 가지고 시작' },
+  { id: 'hard', name: '어려움', desc: '빠른 속도 · 목숨 3\n모든 룰 · 5칸 시작' },
   { id: 'blind', name: '블라인드', desc: '목숨 3 · 룰 숨김\n전환 때만 공개' },
-  { id: '4x4', name: '4×4', desc: '처음부터 4×4 · 목숨 5\n위아래(wasd)도 피함' },
+  { id: '4x4', name: '2차원', desc: '4×4 에서 시작 · 목숨 5\n위아래(wasd)도 피함' },
 ];
 
 export class StartScreen {

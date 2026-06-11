@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { checkCollision } from './CollisionSystem';
 import { InputController, isTextInput } from './InputController';
-import { COLS, createLaneGroup } from './lane';
+import { COLS, cellIndex, colOf, createLaneGroup, rowOf } from './lane';
 import { Player } from './Player';
 import { Spawner } from './Spawner';
 import type { Wall } from './Wall';
@@ -36,17 +36,16 @@ const SETS_PER_ROUND = 10;
 const ROUND_TRANSITION_SEC = 1.8;
 /** 스킵(Space) 시 벽 진행 속도 배율. 충돌 판정은 유지 — 위험 감수 빨리감기. */
 const FAST_FORWARD_MULT = 4;
-/** ruleFloor 가 강제할 수 있는 최대 룰 = 룰1~5. 룰6(4×4 확장)은 라운드6 또는 4×4 모드로만 켜진다. */
-const STANDARD_RULES = 5;
 
 export class Game {
   private status: GameStatus = 'playing';
   private readonly scene: THREE.Scene;
-  private readonly laneGroup: THREE.Group;
+  /** 레인(바닥·경계) — 확장 룰로 cols 가 바뀌면 재구성된다. */
+  private laneGroup: THREE.Group;
   private readonly onMenu: () => void;
-  /** 그리드 줄 수 변경 시 카메라 프레이밍 갱신(main 이 주입). */
-  private readonly onGridRows: (rows: number) => void;
-  /** 4×4 모드(처음부터 4×4). 4×1 모드는 라운드6 룰6 활성 시 4×4 로 확장. */
+  /** 그리드 크기(rows·cols) 변경 시 카메라 프레이밍 갱신(main 이 주입). */
+  private readonly onGridChange: (rows: number, cols: number) => void;
+  /** 2차원 모드(처음부터 4×4). 1차원 모드는 끝까지 한 줄 — 런 중 차원 전환 없음. */
   private readonly grid4x4: boolean;
   /** 현재 세로 줄 수 (1=4×1, 4=4×4). */
   private rows: number;
@@ -79,14 +78,17 @@ export class Game {
     scene: THREE.Scene,
     difficulty: Difficulty = 'normal',
     onMenu: () => void = () => {},
-    onGridRows: (rows: number) => void = () => {},
+    onGridChange: (rows: number, cols: number) => void = () => {},
   ) {
     this.scene = scene;
     this.onMenu = onMenu;
-    this.onGridRows = onGridRows;
+    this.onGridChange = onGridChange;
     this.difficulty = difficulty;
-    const cfg = difficultyConfig(difficulty, STANDARD_RULES);
+    const cfg = difficultyConfig(difficulty, RULES.length);
     this.ruleFloor = cfg.ruleFloor;
+    // "그 라운드까지 간 느낌" — 시작 라운드 = ruleFloor. 어려움은 모든 룰(확장 포함)
+    // 라운드부터 시작하고 표시·점수(base×round²)도 그 기준. 나머지 모드는 1 → 기존대로.
+    this.round = cfg.ruleFloor;
     this.showRulePanel = cfg.showRulePanel;
     this.maxLives = cfg.lives;
     this.lives = cfg.lives;
@@ -111,7 +113,7 @@ export class Game {
     this.gameOverScreen.mountSide(this.scoreboard.element);
 
     this.applyRound(); // 시작 라운드(난이도 ruleFloor)의 룰 활성 + 색 배정 + 패널 + 그리드
-    this.onGridRows(this.rows); // 시작 카메라 프레이밍(4×4 모드면 4줄 시점)
+    this.onGridChange(this.rows, this.cols); // 시작 카메라 프레이밍(그리드 크기 기준)
     this.scoreHud.update(this.score.value, this.round);
     this.scoreHud.setLives(this.lives, this.maxLives);
 
@@ -140,7 +142,7 @@ export class Game {
     if (passed > 0) this.addPassedSets(passed);
     if (this.transitionTimer > 0) return; // 막 텀 시작 → 이번 프레임 충돌 스킵
 
-    const hitWall = checkCollision(this.player, this.spawner.activeWalls, this.engine, this.cols);
+    const hitWall = checkCollision(this.player, this.spawner.activeWalls, this.engine);
     this.player.setHit(hitWall !== null); // 겹치는 동안 빨강 피드백
     if (hitWall && !hitWall.lifeTaken) {
       hitWall.lifeTaken = true; // 이 세트는 1회만 차감
@@ -159,7 +161,8 @@ export class Game {
   private addPassedSets(n: number): void {
     for (let i = 0; i < n; i++) this.score.addSet(this.round); // 통과 시점 라운드로 가산
     this.setsPassed += n;
-    const target = 1 + Math.floor(this.setsPassed / SETS_PER_ROUND);
+    // 시작 라운드(ruleFloor) 기준 진행 — 어려움은 7부터, 나머지는 1부터(기존과 동일).
+    const target = this.ruleFloor + Math.floor(this.setsPassed / SETS_PER_ROUND);
     if (target > this.round) {
       const prevActive = this.engine.activeRules.length;
       this.round = target;
@@ -185,32 +188,56 @@ export class Game {
     return this.score.value;
   }
 
-  /** 활성 룰 수 = min(maxRules, max(round, ruleFloor)) — 어려움은 처음부터 전부. */
+  /** 활성 룰 수 = max(round, ruleFloor) — 어려움은 처음부터 전부(확장 포함). */
   private applyRound(): void {
     this.engine.activateUpTo(Math.max(this.round, this.ruleFloor));
     ensureActiveRuleColors(this.engine.activeRules);
     this.panel.render(this.engine.activeRules);
-    this.refreshGridRows();
+    this.refreshGridSize();
   }
 
-  /** 룰6(4×4 확장) 활성 또는 4×4 모드면 4줄, 아니면 1줄로 그리드 전환(+카메라). */
-  private refreshGridRows(): void {
-    const want = this.grid4x4 || this.engine.isActive(6) ? 4 : 1;
-    if (want === this.rows) return;
-    this.rows = want;
-    this.player.setRows(want);
-    this.spawner.setRows(want);
-    this.onGridRows(want);
+  /**
+   * 활성 룰 → 그리드 크기 전환(+레인·카메라).
+   *  - 한 변(side) = 4 + 확장 룰(룰6) 활성 시 +1. (v2: 룰 추가로 최대 10까지 같은 패턴.)
+   *  - 세로(rows) = 2차원 모드(grid4x4)면 side, 아니면 1줄 — 런 중 1↔2차원 전환 없음.
+   *  - 가로(cols)가 바뀌면 레인(바닥 폭·경계선)도 재구성한다.
+   * 이미 날아오던 세트는 자기 스폰 시점 그리드(wall.cols/rows)로 계속 동작.
+   */
+  private refreshGridSize(): void {
+    const side = COLS + (this.engine.isActive(6) ? 1 : 0);
+    const rows = this.grid4x4 ? side : 1;
+    if (rows === this.rows && side === this.cols) return;
+    const colsChanged = side !== this.cols;
+    this.rows = rows;
+    this.cols = side;
+    this.player.setRows(rows);
+    this.player.setCols(side);
+    this.spawner.setRows(rows);
+    this.spawner.setCols(side);
+    if (colsChanged) {
+      this.scene.remove(this.laneGroup);
+      this.laneGroup = createLaneGroup(side);
+      this.scene.add(this.laneGroup);
+      // 날아오던 세트는 비우지 않고 새 그리드로 재배치(보존) — 옛 칸을 왼쪽 정렬로
+      // 재인코딩해 벽·플레이어가 함께 반 칸 이동 → 상대 위치(공정성) 유지,
+      // 새 열/행은 빈 칸으로 추가된다.
+      this.spawner.regridWalls(rows, side);
+    }
+    this.onGridChange(rows, side);
   }
 
   private gameOver(wall: Wall): void {
     this.status = 'gameover';
     const finalScore = this.score.value;
+    // 리플레이는 죽인 세트의 스폰 시점 그리드(wall.cols/rows) 기준 — 확장 직후
+    // 옛 세트에 죽으면 플레이어 칸(현재 그리드 인덱스)을 그 그리드로 변환(clamp).
+    const pCol = Math.min(colOf(this.player.cell, this.cols), wall.cols - 1);
+    const pRow = Math.min(rowOf(this.player.cell, this.cols), wall.rows - 1);
     this.gameOverScreen.show(finalScore, this.round, {
       before: wall.before ?? wall.snapshot(),
       after: wall.after ?? wall.before ?? wall.snapshot(),
-      playerCell: this.player.cell,
-      cols: this.cols,
+      playerCell: cellIndex(pCol, pRow, wall.cols),
+      cols: wall.cols,
     });
     this.presentScoreboards(finalScore);
   }
@@ -281,7 +308,7 @@ export class Game {
     resetRuleColors(); // 색 초기화 → 라운드 진행으로 다시 배정
     this.score.reset();
     this.lives = this.maxLives;
-    this.round = 1;
+    this.round = this.ruleFloor; // 시작 라운드(어려움=모든 룰 라운드)로 복귀
     this.setsPassed = 0;
     this.transitionTimer = 0;
     this.banner.hide();

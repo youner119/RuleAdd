@@ -14,7 +14,7 @@ import * as THREE from 'three';
  * 동적 cols 를 좌표 함수에 명시 전달한다(그래서 좌표 함수가 cols 인자를 받음).
  * cols 를 안 넘기면 4 — 즉 확장 전(4×1·4×4) 동작은 완전히 동일하다.
  */
-export const COLS = 4; // 시작 가로 칸 수(X축). 세로 줄 수(ROWS)는 4×4 모드/룰6 에서 1↔4.
+export const COLS = 4; // 시작 가로 칸 수(X축). 세로 줄 수(rows)는 2차원 모드에서만 >1 (4, 확장 시 5).
 export const CELL_SIZE = 1;
 export const START_CELL = 1; // 0-based — 가운데-왼쪽 칸(col 1, row 0)에서 시작
 

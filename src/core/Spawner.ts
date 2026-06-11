@@ -17,7 +17,6 @@ const WALL_SPACING = 28; // 연속 벽(세트) 간 Z 거리 → 스폰 주기 = 
 const DEFAULT_INTERVAL_SEC = 4; // 세트 도착 간격 기본값(난이도 미지정 시 = 쉬움 속도)
 const DESPAWN_Z = LANE_NEAR_Z + 2; // 플레이어를 충분히 지나치면 제거
 const SHIFT_TRIGGER_Z = PLAYER_Z - 4; // 플레이어 4유닛 앞 → 코앞에서 이동
-const PASSABLE_COUNT = 1; // 세트당 안전칸(구멍 + 통과벽) 수 — v1 gap 1칸과 동일
 
 export class Spawner {
   private readonly walls: Wall[] = [];
@@ -25,7 +24,7 @@ export class Spawner {
   private lastSig = ''; // 직전 패턴 (연속 동일 회피)
   /** 벽 이동 속도(월드 단위/초). 세트 간격(초) = WALL_SPACING / 이 값. */
   private readonly wallSpeed: number;
-  /** 세로 줄 수 (1=4×1, 4=4×4). 룰6/4×4 모드에서 Game 이 setRows 로 바꾼다. */
+  /** 세로 줄 수 (1차원=1, 2차원=4·확장 시 5). Game 이 setRows 로 바꾼다. */
   private rows: number;
   /** 가로 칸 수 (확장 룰로 4→5…). Game 이 setCols 로 바꾼다. */
   private cols: number;
@@ -42,7 +41,7 @@ export class Spawner {
     this.cols = cols;
   }
 
-  /** 세로 줄 수 갱신(4×4 모드/룰6 확장). 다음 스폰부터 적용. */
+  /** 세로 줄 수 갱신(2차원 모드 확장 4→5). 다음 스폰부터 적용. */
   setRows(rows: number): void {
     this.rows = rows;
   }
@@ -50,6 +49,11 @@ export class Spawner {
   /** 가로 칸 수 갱신(확장 룰). 다음 스폰부터 적용. */
   setCols(cols: number): void {
     this.cols = cols;
+  }
+
+  /** 그리드 확장 시 비행 중인 세트를 보존한 채 새 그리드로 재배치(Wall.regrid). */
+  regridWalls(rows: number, cols: number): void {
+    for (const w of this.walls) w.regrid(cols, rows);
   }
 
   /** 활성 벽 목록 (T7 충돌 판정에서 사용). */
@@ -115,7 +119,8 @@ export class Spawner {
     const blocks = wall.blocks;
     const finals = blocks.map((b) => {
       const dir = this.engine.resolveBehavior(b).shift; // 2D 방향(룰3 정지 등 반영)
-      return stepCell(b.cell, dir, this.rows, this.cols); // 끝에서 바깥 → 반대쪽 끝(토러스)
+      // 세트 자신의 스폰 시점 그리드 기준 — 확장 직후 날아오던 옛 세트도 올바르게 이동.
+      return stepCell(b.cell, dir, wall.rows, wall.cols); // 끝에서 바깥 → 반대쪽 끝(토러스)
     });
 
     // 최종 칸이 모두 distinct → 전부 적용(맞바꿈 포함, 겹침 없음).
@@ -154,7 +159,7 @@ export class Spawner {
     for (const b of [...wall.blocks]) {
       if (!b.expDirs) continue;
       for (const d of b.expDirs) {
-        wall.growBlock(stepCell(b.cell, d, this.rows, this.cols), d);
+        wall.growBlock(stepCell(b.cell, d, wall.rows, wall.cols), d);
       }
     }
   }
@@ -179,7 +184,8 @@ export class Spawner {
     return generateSet({
       rows: this.rows,
       cols: this.cols,
-      passableCount: PASSABLE_COUNT * this.rows, // 4×1=1, 4×4=4 (행마다 안전칸 1)
+      // 안전칸 = floor(총칸/5), 최소 1 — 4×1=1, 4×4=3, 5×5=5 (확장 룰 설계 공식).
+      passableCount: Math.max(1, Math.floor((this.cols * this.rows) / 5)),
       active: {
         move: this.engine.isActive(2),
         opposite: false, // "반대 방향" 룰 비활성화 — 기능 코드는 setgen/rules 에 보존

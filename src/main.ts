@@ -14,19 +14,11 @@ import { StartScreen } from './hud/StartScreen';
  *   Y = 높이. 4×4 확장 시 행이 Y축에 쌓임
  */
 
-/** 카메라 배치 — 튜닝하기 쉽게 한곳에 모음. */
+/** 카메라 렌즈 — 튜닝하기 쉽게 한곳에 모음. 배치는 setCameraForGrid 가 동적 계산. */
 const CAMERA = {
   fov: 60,
   near: 0.1,
   far: 200,
-  position: new THREE.Vector3(0, 4.5, 9), // 플레이어 뒤(+Z) + 위(+Y)
-  lookAt: new THREE.Vector3(0, 0.6, PLAYER_Z - 8), // 플레이어 너머 깊이 응시
-} as const;
-
-/** 4×4 시점 — 세로로 커진 평면(행 0~3)을 담도록 더 위·뒤로 물러난다. */
-const CAMERA_4X4 = {
-  position: new THREE.Vector3(0, 7.5, 12.5),
-  lookAt: new THREE.Vector3(0, 2.3, PLAYER_Z - 8),
 } as const;
 
 const mount = document.querySelector<HTMLDivElement>('#app');
@@ -56,8 +48,6 @@ const camera = new THREE.PerspectiveCamera(
   CAMERA.near,
   CAMERA.far,
 );
-camera.position.copy(CAMERA.position);
-camera.lookAt(CAMERA.lookAt);
 
 // --- Lights (흰 오브젝트가 입체로 보이도록 부드러운 라이팅) ---
 const hemi = new THREE.HemisphereLight(0xffffff, 0xeeeeee, 1.3);
@@ -78,16 +68,21 @@ scene.add(dir);
 // --- Game (난이도 선택 후 시작, 메뉴로 복귀 가능) ---
 let game: Game | null = null;
 
-/** 그리드 줄 수(1=4×1, 4=4×4)에 맞춰 카메라 프레이밍 전환. Game 이 호출. */
-function setCameraForRows(rows: number): void {
-  const c = rows >= 4 ? CAMERA_4X4 : CAMERA;
-  camera.position.copy(c.position);
-  camera.lookAt(c.lookAt);
+/**
+ * 그리드 크기(rows×cols)에 맞춰 카메라를 그리드 중앙에 동적 프레이밍. Game 이 호출.
+ * 4×1(0,4.5,9 / look y 0.6)·4×4(0,7.5,12.5 / look y 2.3) 기존 두 앵커를 행 수로
+ * 보간·외삽하고, 열이 기본(4)보다 넓으면 전체 폭이 담기게 뒤로 물러난다.
+ */
+function setCameraForGrid(rows: number, cols: number): void {
+  const t = rows - 1;
+  camera.position.set(0, 4.5 + t * 1.0, 9 + t * (3.5 / 3) + Math.max(0, cols - 4) * 0.9);
+  camera.lookAt(0, 0.6 + t * (1.7 / 3), PLAYER_Z - 8);
 }
+setCameraForGrid(1, 4); // 시작 화면 동안 기본(4×1) 시점
 
 function showStartScreen(): void {
   new StartScreen(mount as HTMLDivElement, (difficulty) => {
-    game = new Game(scene, difficulty, handleMenu, setCameraForRows);
+    game = new Game(scene, difficulty, handleMenu, setCameraForGrid);
   });
 }
 function handleMenu(): void {

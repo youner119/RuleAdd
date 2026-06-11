@@ -110,32 +110,44 @@ const rule5: Rule = {
 };
 
 /**
- * 룰6 — 확장: 평면이 4×1 → 4×4 로 커진다. 이후 위/아래(wasd)로도 피해야 한다.
- * 블록 행동은 바꾸지 않는다(2D 일반화는 setgen/Spawner 가 담당) — 이 룰은
- * 활성화(라운드6)·HUD 표시용 마커. Game 이 isActive(6) 으로 그리드를 4 줄로 전환.
- * 4×4 모드는 이 룰과 무관하게 시작부터 4×4(Game 의 grid4x4 플래그).
+ * 룰6 — 확장: 그리드 한 변이 +1 (1차원 4칸 → 5칸, 2차원 4×4 → 5×5).
+ * 블록 행동은 바꾸지 않는다 — 활성화(라운드6)·HUD 표시용 마커. Game 이
+ * isActive(6) 으로 한 변을 5 로 키운다(레인 폭·생성기·카메라 전부 cols 동적).
+ * 2차원 여부는 모드(grid4x4)가 정한다 — 런 중 1↔2차원 전환은 없다.
+ * v2 에서 같은 패턴으로 확장 룰을 더 얹을 수 있다(한 변 최대 10).
  */
-const rule6: Rule = {
+const ruleExpand: Rule = {
   id: 6,
+  label: '맵이 커진다 (한 변 +1)',
+  appliesTo: () => false,
+  modify: (behavior) => behavior,
+};
+
+export const RULES: readonly Rule[] = [rule1, rule2, rule3, rule4, rule5, ruleExpand];
+
+/**
+ * 비활성화된 룰(기능 보존) — RULES 에서 제외되어 게임에 추가되지 않는다
+ * (라운드가 올라도 활성화 안 됨). 재활성화하려면 RULES 배열에 다시 넣고
+ * 번호(id)를 재배치하면 된다.
+ *  - ruleOpposite(구 룰3): "이 색은 화살표 반대로 이동". 효과·생성기(setgen 의
+ *    effShift/displayReps num2 경로)·Spawner 매핑 코드는 그대로 남아 있다.
+ *  - rule4x4Expand(구 룰6): 런 중 4×1 → 4×4 전환. 2차원은 이제 모드(grid4x4)
+ *    전용이라 배열에서 뺐다. 재활성화 시 Game.refreshGridSize 의 rows 계산에
+ *    isActive 체크를 되살리면 된다(2D 코어·setgen·카메라는 전부 동작 보존).
+ */
+const ruleOpposite = makeColorRule(90, '이 색은 화살표 반대로 이동', (behavior, block) => ({
+  ...behavior,
+  shift: negDir(block.arrow),
+}));
+
+const rule4x4Expand: Rule = {
+  id: 91,
   label: '이제 4×4 크기로 위아래(wasd)도 피한다',
   appliesTo: () => false,
   modify: (behavior) => behavior,
 };
 
-export const RULES: readonly Rule[] = [rule1, rule2, rule3, rule4, rule5, rule6];
-
-/**
- * 비활성화된 룰(기능 보존) — "이 색은 화살표 반대로 이동"(구 룰3).
- * RULES 에서 제외되어 게임에 추가되지 않는다(라운드가 올라도 활성화 안 됨).
- * 효과·생성기(setgen 의 effShift/displayReps num2 경로)·Spawner 매핑 코드는 그대로
- * 남아 있어, 재활성화하려면 이 룰을 RULES 배열에 다시 넣고 번호(id)를 재배치하면 된다.
- */
-const ruleOpposite = makeColorRule(6, '이 색은 화살표 반대로 이동', (behavior, block) => ({
-  ...behavior,
-  shift: negDir(block.arrow),
-}));
-
-export const DISABLED_RULES: readonly Rule[] = [ruleOpposite];
+export const DISABLED_RULES: readonly Rule[] = [ruleOpposite, rule4x4Expand];
 
 /** 모든 색 룰의 배정 색을 비운다(재시작 시). */
 export function resetRuleColors(): void {

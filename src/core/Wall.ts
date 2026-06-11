@@ -1,5 +1,16 @@
 import * as THREE from 'three';
-import { CELL_SIZE, COLS, DIR_NONE, type Dir, cellToX, cellToY, isDir } from './lane';
+import {
+  CELL_SIZE,
+  COLS,
+  DIR_NONE,
+  type Dir,
+  cellIndex,
+  cellToX,
+  cellToY,
+  colOf,
+  isDir,
+  rowOf,
+} from './lane';
 
 /**
  * Wall — 한 "세트"(다가오는 한 줄). Z로 함께 이동하지만, 그 안의 각 블록은
@@ -157,14 +168,22 @@ export class Wall {
   after?: CellSnapshot[];
   /** 성장 중인 확장 블록(룰5) — update 에서 스케일 애니메이션. */
   private readonly growing: { block: Block; dir: Dir; t: number }[] = [];
-  /** 이 세트의 총 칸수(= 그리드 cols×rows). blocked 배열 길이로 결정. */
-  private readonly cellTotal: number;
-  /** 가로 칸 수 — 셀 인덱스 → 좌표 변환 기준(확장 룰로 4→5…). */
-  private readonly cols: number;
+  /** 이 세트의 총 칸수(= 그리드 cols×rows). blocked 배열 길이로 결정, regrid 로 커질 수 있다. */
+  private cellTotal: number;
+  /**
+   * 이 세트의 가로 칸 수 — 셀 인덱스 → 좌표 변환 기준. 스폰 시점 그리드 기준이며,
+   * 확장 룰로 그리드가 커지면 regrid 로 새 그리드에 재배치된다
+   * (Spawner 쉬프트/확장·CollisionSystem 이 wall.cols/rows 를 쓴다).
+   */
+  private _cols: number;
+
+  get cols(): number {
+    return this._cols;
+  }
 
   constructor(blocked: readonly boolean[], cols = COLS) {
     this.cellTotal = blocked.length;
-    this.cols = cols;
+    this._cols = cols;
     this.object = new THREE.Group();
     this.blocks = [];
 
@@ -287,10 +306,56 @@ export class Wall {
     return cells;
   }
 
+  /** 이 세트의 세로 줄 수 — 총 칸수/cols. regrid 로 커질 수 있다. */
+  get rows(): number {
+    return Math.max(1, Math.round(this.cellTotal / this.cols));
+  }
+
+  /**
+   * 그리드 확장 시 재배치(보존) — 비행 중인 세트를 비우지 않고 새 그리드로 옮긴다.
+   * 옛 (col,row) 를 그대로 새 그리드 인덱스로 재인코딩(왼쪽 정렬: 새 열은 오른쪽,
+   * 새 행은 위에 빈 칸으로 추가). 플레이어도 같은 방식으로 반 칸 이동하므로
+   * 구–벽의 상대 위치(공정성)가 정확히 보존된다. 스냅샷(before/after)도 재매핑.
+   */
+  regrid(cols: number, rows: number): void {
+    const oldCols = this._cols;
+    if (cols === oldCols && cols * rows === this.cellTotal) return;
+    for (const block of this.blocks) {
+      block.cell = cellIndex(colOf(block.cell, oldCols), rowOf(block.cell, oldCols), cols);
+    }
+    this._cols = cols;
+    this.cellTotal = cols * rows;
+    for (const block of this.blocks) {
+      block.group.position.x = cellToX(block.cell, cols);
+      block.group.position.y = cellToY(block.cell, cols);
+    }
+    if (this.before) this.before = remapSnapshot(this.before, oldCols, cols, rows);
+    if (this.after) this.after = remapSnapshot(this.after, oldCols, cols, rows);
+  }
+
   get z(): number {
     return this.object.position.z;
   }
   set z(v: number) {
     this.object.position.z = v;
   }
+}
+
+/** 스냅샷(칸별 배열)을 옛 그리드 → 새 그리드 인덱스로 재매핑. 새 칸은 빈 칸. */
+function remapSnapshot(
+  snap: CellSnapshot[],
+  oldCols: number,
+  cols: number,
+  rows: number,
+): CellSnapshot[] {
+  const out: CellSnapshot[] = Array.from({ length: cols * rows }, () => ({
+    blocked: false,
+    color: null,
+    arrow: DIR_NONE,
+    expandDirs: [],
+  }));
+  snap.forEach((c, i) => {
+    out[cellIndex(colOf(i, oldCols), rowOf(i, oldCols), cols)] = c;
+  });
+  return out;
 }

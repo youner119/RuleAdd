@@ -1,4 +1,4 @@
-import { CELL_SIZE, COLS, cellToX, cellToY, PLAYER_Z } from './lane';
+import { CELL_SIZE, cellToX, cellToY, PLAYER_Z } from './lane';
 import { Player, PLAYER_RADIUS } from './Player';
 import { Wall, WALL_THICKNESS } from './Wall';
 import type { RuleEngine } from '../rules/RuleEngine';
@@ -26,7 +26,6 @@ export function checkCollision(
   player: Player,
   walls: readonly Wall[],
   engine: RuleEngine,
-  cols = COLS,
 ): Wall | null {
   const px = player.x;
   const py = player.y;
@@ -34,9 +33,10 @@ export function checkCollision(
     if (Math.abs(wall.z - PLAYER_Z) >= Z_REACH) continue; // Z 미접촉
     for (const block of wall.blocks) {
       if (!engine.resolveBehavior(block).collidable) continue; // 룰4: 통과 블록
+      // 좌표는 월드 기준 비교 — 세트마다 스폰 시점 그리드(wall.cols)로 변환.
       if (
-        Math.abs(px - cellToX(block.cell, cols)) < X_REACH &&
-        Math.abs(py - cellToY(block.cell, cols)) < Y_REACH
+        Math.abs(px - cellToX(block.cell, wall.cols)) < X_REACH &&
+        Math.abs(py - cellToY(block.cell, wall.cols)) < Y_REACH
       ) {
         return wall; // 블록과 가로·세로 모두 겹침
       }

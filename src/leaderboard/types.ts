@@ -21,11 +21,11 @@ export interface GlobalEntry {
   at: number | null;
 }
 
-/** 모드(난이도) → 화면 표시 라벨. 기록판/모달 헤더에 사용. */
+/** 모드(난이도) → 화면 표시 라벨. 기록판/모달 헤더에 사용. id '4x4' 의 표시명은 "2차원"(저장 키는 호환 위해 유지). */
 export const MODE_LABELS: Record<Difficulty, string> = {
   easy: '쉬움',
   normal: '보통',
   hard: '어려움',
   blind: '블라인드',
-  '4x4': '4×4',
+  '4x4': '2차원',
 };
