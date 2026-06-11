@@ -1,9 +1,8 @@
-import type { Difficulty } from '../core/difficulty';
-
 /**
- * 리더보드 엔트리 타입 + 모드 라벨.
+ * 리더보드 엔트리 타입.
  *  - LocalEntry  : 브라우저(localStorage) 개인 top5. 점수+시각만(이름/코멘트 없음).
  *  - GlobalEntry : Firestore 전체 top10. 진입 시 입력한 이름+코멘트 포함.
+ * 모드 표시 라벨은 i18n.modeLabel (한/EN — 저장 키는 Difficulty id 그대로).
  */
 
 /** 개인 기록 1건 — 점수와 달성 시각(epoch ms). */
@@ -21,11 +20,3 @@ export interface GlobalEntry {
   at: number | null;
 }
 
-/** 모드(난이도) → 화면 표시 라벨. 기록판/모달 헤더에 사용. id '4x4' 의 표시명은 "2차원"(저장 키는 호환 위해 유지). */
-export const MODE_LABELS: Record<Difficulty, string> = {
-  easy: '쉬움',
-  normal: '보통',
-  hard: '어려움',
-  blind: '블라인드',
-  '4x4': '2차원',
-};

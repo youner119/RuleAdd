@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { COMMENT_MAX, NAME_MAX } from '../leaderboard/globalBoard';
 
 const LAST_NAME_KEY = 'ruleadd.lastName';
@@ -43,7 +44,7 @@ export class NameEntryModal {
     ].join(';');
 
     const title = document.createElement('div');
-    title.textContent = '🏆 전체 랭킹 진입!';
+    title.textContent = t('nameEntryTitle');
     title.style.cssText = 'font:800 22px/1.1 system-ui,sans-serif;';
 
     this.rankLabel = document.createElement('div');
@@ -51,20 +52,20 @@ export class NameEntryModal {
 
     this.nameInput = document.createElement('input');
     this.nameInput.maxLength = NAME_MAX;
-    this.nameInput.placeholder = `이름 (최대 ${NAME_MAX}자)`;
+    this.nameInput.placeholder = t('namePlaceholder', { max: NAME_MAX });
     this.nameInput.style.cssText = this.fieldCss();
 
     this.commentInput = document.createElement('textarea');
     this.commentInput.maxLength = COMMENT_MAX;
     this.commentInput.rows = 2;
-    this.commentInput.placeholder = `코멘트 (선택, 최대 ${COMMENT_MAX}자)`;
+    this.commentInput.placeholder = t('commentPlaceholder', { max: COMMENT_MAX });
     this.commentInput.style.cssText = this.fieldCss() + ';resize:none;';
 
     const buttons = document.createElement('div');
     buttons.style.cssText = 'display:flex;gap:10px;margin-top:4px;';
     buttons.append(
-      this.button('등록', true, () => this.submit()),
-      this.button('건너뛰기', false, () => this.skip()),
+      this.button(t('submit'), true, () => this.submit()),
+      this.button(t('skip'), false, () => this.skip()),
     );
 
     win.append(title, this.rankLabel, this.nameInput, this.commentInput, buttons);
@@ -88,7 +89,7 @@ export class NameEntryModal {
   ): void {
     this.onSubmit = onSubmit;
     this.onSkip = onSkip;
-    this.rankLabel.textContent = `전체 ${rank}위에 올랐습니다 — 이름을 남기세요`;
+    this.rankLabel.textContent = t('nameEntryRank', { rank });
     this.nameInput.value = readLastName();
     this.commentInput.value = '';
     this.root.style.display = 'flex';
@@ -101,7 +102,7 @@ export class NameEntryModal {
   }
 
   private submit(): void {
-    const name = this.nameInput.value.trim() || '익명';
+    const name = this.nameInput.value.trim() || t('anon');
     const comment = this.commentInput.value.trim();
     writeLastName(name);
     this.hide();

@@ -9,6 +9,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import type { Difficulty } from '../core/difficulty';
+import { t } from '../i18n';
 import { db, isGlobalEnabled } from './firebase';
 import type { GlobalEntry } from './types';
 
@@ -63,7 +64,7 @@ export async function submitGlobal(
   if (!isGlobalEnabled || !db) return;
   await addDoc(scoresCol(mode), {
     score,
-    name: name.trim().slice(0, NAME_MAX) || '익명',
+    name: name.trim().slice(0, NAME_MAX) || t('anon'),
     comment: comment.trim().slice(0, COMMENT_MAX),
     at: serverTimestamp(),
   });

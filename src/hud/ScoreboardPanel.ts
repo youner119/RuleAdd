@@ -1,6 +1,6 @@
 import type { Difficulty } from '../core/difficulty';
+import { modeLabel, t } from '../i18n';
 import type { GlobalEntry, LocalEntry } from '../leaderboard/types';
-import { MODE_LABELS } from '../leaderboard/types';
 
 /**
  * ScoreboardPanel — 게임오버 시 중앙 창 옆에 세우는 기록판.
@@ -40,8 +40,8 @@ export class ScoreboardPanel {
 
     this.root.append(
       this.heading,
-      this.section('전체 TOP 10', this.globalBody),
-      this.section('내 기록 TOP 5', this.localBody),
+      this.section(t('globalTop10'), this.globalBody),
+      this.section(t('myTop5'), this.localBody),
     );
   }
 
@@ -52,30 +52,30 @@ export class ScoreboardPanel {
 
   /** 모드 라벨로 헤더 갱신 + 양쪽 본문 비우기(새 게임오버 진입 시). */
   setMode(mode: Difficulty): void {
-    this.heading.textContent = `${MODE_LABELS[mode]} 기록`;
+    this.heading.textContent = t('modeRecords', { mode: modeLabel(mode) });
     this.globalBody.replaceChildren();
     this.localBody.replaceChildren();
   }
 
   /** 글로벌: 로딩 중. */
   setGlobalLoading(): void {
-    this.globalBody.replaceChildren(this.note('불러오는 중…'));
+    this.globalBody.replaceChildren(this.note(t('loading')));
   }
 
   /** 글로벌: config 없음(오프라인). */
   setGlobalOffline(): void {
-    this.globalBody.replaceChildren(this.note('오프라인 — 전체 랭킹 비활성'));
+    this.globalBody.replaceChildren(this.note(t('offline')));
   }
 
   /** 글로벌: 조회 실패. */
   setGlobalError(): void {
-    this.globalBody.replaceChildren(this.note('불러오기 실패'));
+    this.globalBody.replaceChildren(this.note(t('loadFailed')));
   }
 
   /** 글로벌 top10 렌더. highlightIndex 행은 이번에 새로 올린 기록(강조). */
   showGlobal(entries: GlobalEntry[], highlightIndex = -1): void {
     if (entries.length === 0) {
-      this.globalBody.replaceChildren(this.note('아직 기록 없음 — 1등이 되세요!'));
+      this.globalBody.replaceChildren(this.note(t('noRecordsGlobal')));
       return;
     }
     const rows = entries.map((e, i) =>
@@ -87,7 +87,7 @@ export class ScoreboardPanel {
   /** 개인 top5 렌더. highlightAt 과 at 이 같은 행을 강조(이번 기록). */
   showLocal(entries: LocalEntry[], highlightAt = -1): void {
     if (entries.length === 0) {
-      this.localBody.replaceChildren(this.note('기록 없음'));
+      this.localBody.replaceChildren(this.note(t('noRecords')));
       return;
     }
     const rows = entries.map((e, i) =>

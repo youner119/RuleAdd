@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { Rule } from '../rules/RuleEngine';
 
 /**
@@ -53,7 +54,7 @@ export class RoundBanner {
     this.ruleEl.replaceChildren();
     if (newRule) {
       const tag = document.createElement('span');
-      tag.textContent = `룰 ${newRule.id}.`;
+      tag.textContent = t('ruleTag', { id: newRule.id });
       tag.style.cssText = 'font-weight:800;color:#444;';
 
       this.ruleEl.appendChild(tag);

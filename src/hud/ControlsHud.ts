@@ -1,8 +1,9 @@
+import { t } from '../i18n';
+
 /**
  * ControlsHud — 좌상단(점수 밑) 사용법 안내(테두리 없는 검은 텍스트).
  * 이동 조작(wasd/ik)은 제외하고, 메타 조작만 표시한다.
  */
-const LINES: readonly string[] = ['R: 재시작', 'M: 메인 메뉴', '스페이스: 빨리감기'];
 
 export class ControlsHud {
   private readonly root: HTMLDivElement;
@@ -24,7 +25,7 @@ export class ControlsHud {
       'z-index:5',
     ].join(';');
 
-    for (const line of LINES) {
+    for (const line of [t('ctrlRestart'), t('ctrlMenu'), t('ctrlFastForward')]) {
       const el = document.createElement('div');
       el.textContent = line;
       this.root.appendChild(el);

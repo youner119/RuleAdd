@@ -1,6 +1,6 @@
 import type { Difficulty } from '../core/difficulty';
+import { modeLabel, t } from '../i18n';
 import { fetchGlobalTop, isGlobalEnabled } from '../leaderboard/globalBoard';
-import { MODE_LABELS } from '../leaderboard/types';
 import type { GlobalEntry } from '../leaderboard/types';
 
 /**
@@ -44,7 +44,7 @@ export class ScoreboardScreen {
     header.style.cssText =
       'position:relative;width:100%;max-width:640px;display:flex;align-items:center;justify-content:center;';
     const back = document.createElement('button');
-    back.textContent = '← 뒤로';
+    back.textContent = t('back');
     back.style.cssText = [
       'position:absolute',
       'left:0',
@@ -58,7 +58,7 @@ export class ScoreboardScreen {
     ].join(';');
     back.addEventListener('click', () => this.hide());
     const title = document.createElement('div');
-    title.textContent = '점수판';
+    title.textContent = t('scoreboardTitle');
     title.style.cssText = 'font:800 30px/1 system-ui,sans-serif;letter-spacing:2px;';
     header.append(back, title);
 
@@ -67,7 +67,7 @@ export class ScoreboardScreen {
     this.tabsRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:center;';
     for (const mode of MODES) {
       const btn = document.createElement('button');
-      btn.textContent = MODE_LABELS[mode];
+      btn.textContent = modeLabel(mode);
       btn.style.cssText = this.tabCss(false);
       btn.addEventListener('click', () => this.selectMode(mode));
       this.tabButtons.set(mode, btn);
@@ -115,25 +115,25 @@ export class ScoreboardScreen {
     }
 
     if (!isGlobalEnabled) {
-      this.renderNote('오프라인 — 전체 랭킹이 비활성화되어 있습니다.');
+      this.renderNote(t('offline'));
       return;
     }
 
-    this.renderNote('불러오는 중…');
+    this.renderNote(t('loading'));
     const token = ++this.loadToken;
     fetchGlobalTop(mode)
       .then((entries) => {
         if (token === this.loadToken) this.renderTable(entries);
       })
       .catch(() => {
-        if (token === this.loadToken) this.renderNote('불러오기 실패 — 잠시 후 다시 시도하세요.');
+        if (token === this.loadToken) this.renderNote(t('loadFailedRetry'));
       });
   }
 
   /** 전체 top10 표 렌더. */
   private renderTable(entries: GlobalEntry[]): void {
     if (entries.length === 0) {
-      this.renderNote('아직 기록 없음 — 1등이 되세요!');
+      this.renderNote(t('noRecordsGlobal'));
       return;
     }
 
@@ -147,7 +147,7 @@ export class ScoreboardScreen {
   private headerRow(): HTMLDivElement {
     const row = this.gridRow();
     row.style.cssText += ';border-bottom:2px solid #222;padding-bottom:6px;margin-bottom:4px;';
-    const cells = ['#', '이름', '점수', '코멘트'];
+    const cells = ['#', t('colName'), t('colScore'), t('colComment')];
     const aligns = ['right', 'left', 'right', 'left'];
     cells.forEach((text, i) => {
       const c = document.createElement('span');

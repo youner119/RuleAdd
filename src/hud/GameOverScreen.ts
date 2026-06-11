@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CELL_SIZE, LANE_Y, cellToX, cellToY, isDir } from '../core/lane';
+import { t } from '../i18n';
 import { PLAYER_RADIUS } from '../core/Player';
 import { Wall, type CellSnapshot } from '../core/Wall';
 
@@ -69,7 +70,7 @@ export class GameOverScreen {
     this.scoreEl = document.createElement('div');
     this.scoreEl.style.cssText = 'font:800 32px/1 system-ui,sans-serif;';
     const scoreLabel = document.createElement('div');
-    scoreLabel.textContent = '최종 점수';
+    scoreLabel.textContent = t('finalScore');
     scoreLabel.style.cssText = 'font:600 13px/1 system-ui,sans-serif;color:#888;margin-bottom:-8px;';
 
     this.roundEl = document.createElement('div');
@@ -82,12 +83,12 @@ export class GameOverScreen {
     const buttons = document.createElement('div');
     buttons.style.cssText = 'display:flex;gap:12px;margin-top:8px;';
     buttons.append(
-      this.makeButton('다시하기', onRestart),
-      this.makeButton('메뉴', onMenu),
+      this.makeButton(t('retry'), onRestart),
+      this.makeButton(t('menu'), onMenu),
     );
 
     const hint = document.createElement('div');
-    hint.textContent = 'R 키로 다시하기';
+    hint.textContent = t('retryHint');
     hint.style.cssText = 'font:400 12px/1 system-ui,sans-serif;color:#aaa;';
 
     win.append(title, scoreLabel, this.scoreEl, this.roundEl, this.deathView, buttons, hint);
@@ -137,7 +138,7 @@ export class GameOverScreen {
     this.deathView.replaceChildren();
 
     const heading = document.createElement('div');
-    heading.textContent = '왜 죽었나?';
+    heading.textContent = t('whyDied');
     heading.style.cssText = 'font:700 13px/1 system-ui,sans-serif;color:#888;letter-spacing:1px;';
 
     const row = document.createElement('div');
@@ -184,7 +185,7 @@ export class GameOverScreen {
 
     if (danger) {
       const tag = document.createElement('div');
-      tag.textContent = '여기서 막힘!';
+      tag.textContent = t('blockedHere');
       tag.style.cssText = 'font:700 11px/1 system-ui,sans-serif;color:#e23b3b;';
       wrap.appendChild(tag);
     }

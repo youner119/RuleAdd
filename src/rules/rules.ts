@@ -1,4 +1,5 @@
 import { DIR_NONE, isDir, negDir } from '../core/lane';
+import { t, type MsgKey } from '../i18n';
 import type { BlockBehavior, Rule, RuleBlock } from './RuleEngine';
 
 /**
@@ -48,10 +49,14 @@ export const COLOR_POOL: readonly string[] = [
   '#a8431a', // rust
 ];
 
+// 룰 라벨은 getter 로 t() 를 호출 — 표시 시점의 언어(한/EN)를 항상 따른다.
+
 /** 룰1 — 벽에 닿으면 죽는다 · a/d 이동. base. */
 const rule1: Rule = {
   id: 1,
-  label: '벽에 닿으면 죽는다 · a/d 이동',
+  get label() {
+    return t('rule_die');
+  },
   appliesTo: () => true,
   modify: (behavior) => behavior,
 };
@@ -59,7 +64,9 @@ const rule1: Rule = {
 /** 룰2 — 화살표 있는 블록은 근접 시 화살표 방향으로 1칸 쉬프트. */
 const rule2: Rule = {
   id: 2,
-  label: '화살표 방향으로 벽이 움직인다',
+  get label() {
+    return t('rule_arrow');
+  },
   appliesTo: (block) => isDir(block.arrow),
   modify: (behavior, block) => ({ ...behavior, shift: block.arrow }),
 };
@@ -67,21 +74,21 @@ const rule2: Rule = {
 /** 색 룰의 행동 종류 — 정지 / 통과 / 반대 방향. */
 export type ColorRuleKind = 'stop' | 'pass' | 'opposite';
 
-/** 행동 종류 → 라벨·효과 정의(정본). 정적 룰3/4 와 동적(진행) 색 룰이 공유. */
+/** 행동 종류 → 라벨 키·효과 정의(정본). 정적 룰3/4 와 동적(진행) 색 룰이 공유. */
 const COLOR_RULE_DEFS: Record<
   ColorRuleKind,
-  { label: string; effect: (behavior: BlockBehavior, block: RuleBlock) => BlockBehavior }
+  { labelKey: MsgKey; effect: (behavior: BlockBehavior, block: RuleBlock) => BlockBehavior }
 > = {
   stop: {
-    label: '이 색은 움직이지 않는다',
+    labelKey: 'rule_stop',
     effect: (behavior) => ({ ...behavior, shift: DIR_NONE }),
   },
   pass: {
-    label: '이 색은 통과할 수 있다',
+    labelKey: 'rule_pass',
     effect: (behavior) => ({ ...behavior, collidable: false }),
   },
   opposite: {
-    label: '이 색은 화살표 반대로 이동',
+    labelKey: 'rule_opposite',
     effect: (behavior, block) => ({ ...behavior, shift: negDir(block.arrow) }),
   },
 };
@@ -92,7 +99,9 @@ export function makeColorRule(id: number, kind: ColorRuleKind): Rule {
   let target: string | null = null;
   return {
     id,
-    label: def.label,
+    get label() {
+      return t(def.labelKey);
+    },
     behaviorKind: kind,
     get targetColor() {
       return target;
@@ -119,7 +128,9 @@ const rule4 = makeColorRule(4, 'pass');
  */
 const rule5: Rule = {
   id: 5,
-  label: 'ⓧ 표시 벽은 칠해진 방향으로 늘어난다',
+  get label() {
+    return t('rule_growWall');
+  },
   appliesTo: () => false,
   modify: (behavior) => behavior,
 };
@@ -132,7 +143,9 @@ const rule5: Rule = {
 export function makeExpandRule(id: number): Rule {
   return {
     id,
-    label: '맵이 커진다 (한 변 +1)',
+    get label() {
+      return t('rule_expand');
+    },
     tag: 'expand',
     appliesTo: () => false,
     modify: (behavior) => behavior,
@@ -143,7 +156,9 @@ export function makeExpandRule(id: number): Rule {
 export function makeSpeedRule(id: number): Rule {
   return {
     id,
-    label: '벽이 5% 빨라진다',
+    get label() {
+      return t('rule_speed');
+    },
     tag: 'speed',
     appliesTo: () => false,
     modify: (behavior) => behavior,
