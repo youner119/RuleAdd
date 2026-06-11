@@ -56,6 +56,14 @@ export class Spawner {
     for (const w of this.walls) w.regrid(cols, rows);
   }
 
+  /**
+   * 라운드 전환 텀(게임 정지) 동안 벽 애니메이션만 진행 — Z 이동·스폰 없이
+   * regrid 슬라이드/확장 성장 보간만 돌린다(Game 이 전환 중 호출).
+   */
+  tickTweens(dt: number): void {
+    for (const w of this.walls) w.update(dt);
+  }
+
   /** 활성 벽 목록 (T7 충돌 판정에서 사용). */
   get activeWalls(): readonly Wall[] {
     return this.walls;

@@ -99,12 +99,12 @@ export class Player {
     this.object.position.y = this.targetY;
   }
 
-  /** 가로 칸 수 갱신(확장 룰). 열 clamp + X 위치 재계산. */
+  /** 가로 칸 수 갱신(확장 룰). 열 clamp + 새 X 로 슬라이드(반 칸 이동 애니메이션). */
   setCols(cols: number): void {
     this.cols = cols;
     this.currentCol = Math.min(this.currentCol, cols - 1);
     this.targetX = cellToX(cellIndex(this.currentCol, this.currentRow, cols), cols);
-    this.object.position.x = this.targetX;
+    if (Math.abs(this.targetX - this.object.position.x) > SNAP_THRESHOLD) this.sliding = true;
   }
 
   /**

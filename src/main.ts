@@ -69,16 +69,49 @@ scene.add(dir);
 let game: Game | null = null;
 
 /**
- * 그리드 크기(rows×cols)에 맞춰 카메라를 그리드 중앙에 동적 프레이밍. Game 이 호출.
+ * 그리드 크기(rows×cols)에 맞는 카메라 위치/시선 계산.
  * 4×1(0,4.5,9 / look y 0.6)·4×4(0,7.5,12.5 / look y 2.3) 기존 두 앵커를 행 수로
  * 보간·외삽하고, 열이 기본(4)보다 넓으면 전체 폭이 담기게 뒤로 물러난다.
  */
-function setCameraForGrid(rows: number, cols: number): void {
+function gridCamera(rows: number, cols: number): { pos: THREE.Vector3; look: THREE.Vector3 } {
   const t = rows - 1;
-  camera.position.set(0, 4.5 + t * 1.0, 9 + t * (3.5 / 3) + Math.max(0, cols - 4) * 0.9);
-  camera.lookAt(0, 0.6 + t * (1.7 / 3), PLAYER_Z - 8);
+  return {
+    pos: new THREE.Vector3(0, 4.5 + t * 1.0, 9 + t * (3.5 / 3) + Math.max(0, cols - 4) * 0.9),
+    look: new THREE.Vector3(0, 0.6 + t * (1.7 / 3), PLAYER_Z - 8),
+  };
 }
-setCameraForGrid(1, 4); // 시작 화면 동안 기본(4×1) 시점
+
+// 카메라 글라이드 — 그리드 전환(확장 등) 시 새 프레이밍으로 부드럽게 이동.
+// 라운드 전환 텀(1.8s) 안에 끝나도록 1.1s. easeInOutQuad.
+const CAM_TWEEN_SEC = 1.1;
+const camFrom = { pos: new THREE.Vector3(), look: new THREE.Vector3() };
+const camTo = gridCamera(1, 4);
+const camLook = camTo.look.clone(); // 현재 시선(보간 상태)
+let camT = 1; // 1 = 보간 완료(정지)
+
+camera.position.copy(camTo.pos);
+camera.lookAt(camLook);
+
+/** 그리드 크기 변경 → 카메라 글라이드 시작. Game 이 호출. */
+function setCameraForGrid(rows: number, cols: number): void {
+  const target = gridCamera(rows, cols);
+  if (camera.position.distanceToSquared(target.pos) < 1e-6) return; // 동일 프레이밍 — 무시
+  camFrom.pos.copy(camera.position);
+  camFrom.look.copy(camLook);
+  camTo.pos.copy(target.pos);
+  camTo.look.copy(target.look);
+  camT = 0;
+}
+
+/** 카메라 보간 진행 — 게임 루프 update 에서 매 프레임(전환 텀에도 동작). */
+function updateCamera(dt: number): void {
+  if (camT >= 1) return;
+  camT = Math.min(1, camT + dt / CAM_TWEEN_SEC);
+  const e = camT < 0.5 ? 2 * camT * camT : 1 - (2 - 2 * camT) ** 2 / 2; // easeInOutQuad
+  camera.position.lerpVectors(camFrom.pos, camTo.pos, e);
+  camLook.lerpVectors(camFrom.look, camTo.look, e);
+  camera.lookAt(camLook);
+}
 
 function showStartScreen(): void {
   new StartScreen(mount as HTMLDivElement, (difficulty) => {
@@ -88,6 +121,7 @@ function showStartScreen(): void {
 function handleMenu(): void {
   game?.dispose();
   game = null;
+  setCameraForGrid(1, 4); // 메뉴 복귀 — 기본(4×1) 시점으로 글라이드
   showStartScreen();
 }
 showStartScreen();
@@ -105,6 +139,7 @@ onResize();
 
 // --- Game loop ---
 function update(dt: number): void {
+  updateCamera(dt); // 카메라 글라이드는 게임 정지(전환 텀)·메뉴에서도 진행
   game?.update(dt); // 시작 화면 동안엔 game=null
 }
 function render(): void {

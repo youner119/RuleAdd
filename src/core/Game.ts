@@ -123,9 +123,12 @@ export class Game {
   update(dt: number): void {
     if (this.status !== 'playing') return;
 
-    // 라운드 전환 텀 — 게임 정지, 중앙 배너 표시.
+    // 라운드 전환 텀 — 게임 정지(Z 이동·스폰·충돌 없음), 중앙 배너 표시.
+    // 단 확장 애니메이션(벽 regrid 슬라이드·플레이어 반 칸 이동)은 이 동안 진행.
     if (this.transitionTimer > 0) {
       this.transitionTimer -= dt;
+      this.spawner.tickTweens(dt);
+      this.player.update(dt);
       if (this.transitionTimer <= 0) {
         this.transitionTimer = 0;
         this.banner.hide();
@@ -208,20 +211,26 @@ export class Game {
     const rows = this.grid4x4 ? side : 1;
     if (rows === this.rows && side === this.cols) return;
     const colsChanged = side !== this.cols;
+    const grew = side > this.cols;
     this.rows = rows;
     this.cols = side;
     this.player.setRows(rows);
-    this.player.setCols(side);
+    this.player.setCols(side); // 확장이면 새 X 로 슬라이드(전환 텀 동안 진행)
     this.spawner.setRows(rows);
     this.spawner.setCols(side);
     if (colsChanged) {
       this.scene.remove(this.laneGroup);
       this.laneGroup = createLaneGroup(side);
       this.scene.add(this.laneGroup);
-      // 날아오던 세트는 비우지 않고 새 그리드로 재배치(보존) — 옛 칸을 왼쪽 정렬로
-      // 재인코딩해 벽·플레이어가 함께 반 칸 이동 → 상대 위치(공정성) 유지,
-      // 새 열/행은 빈 칸으로 추가된다.
-      this.spawner.regridWalls(rows, side);
+      if (grew) {
+        // 확장: 날아오던 세트는 비우지 않고 새 그리드로 재배치(보존) — 옛 칸을 왼쪽
+        // 정렬로 재인코딩해 벽·플레이어가 함께 반 칸 슬라이드 → 상대 위치(공정성)
+        // 유지, 새 열/행은 빈 칸으로 추가된다.
+        this.spawner.regridWalls(rows, side);
+      } else {
+        // 축소(재시작으로 시작 크기 복귀): regrid 는 줄어든 그리드에 맞지 않으므로 클리어.
+        this.spawner.reset();
+      }
     }
     this.onGridChange(rows, side);
   }

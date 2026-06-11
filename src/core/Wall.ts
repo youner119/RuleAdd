@@ -152,6 +152,13 @@ export interface CellSnapshot {
 
 /** 확장(룰5) 성장 애니메이션 길이(초). */
 const GROW_SEC = 0.25;
+/** 그리드 재배치(regrid) 슬라이드 길이(초) — 라운드 전환 텀(1.8s) 안에 끝난다. */
+const REGRID_SEC = 0.45;
+
+/** easeInOutQuad — 보간용 가감속. */
+function easeInOut(k: number): number {
+  return k < 0.5 ? 2 * k * k : 1 - (2 - 2 * k) ** 2 / 2;
+}
 
 export class Wall {
   /** 씬에 추가하는 루트. */
@@ -168,6 +175,8 @@ export class Wall {
   after?: CellSnapshot[];
   /** 성장 중인 확장 블록(룰5) — update 에서 스케일 애니메이션. */
   private readonly growing: { block: Block; dir: Dir; t: number }[] = [];
+  /** regrid 슬라이드 중인 블록 — update 에서 X 보간(반 칸 이동). */
+  private readonly slidingBlocks: { block: Block; fromX: number; toX: number; t: number }[] = [];
   /** 이 세트의 총 칸수(= 그리드 cols×rows). blocked 배열 길이로 결정, regrid 로 커질 수 있다. */
   private cellTotal: number;
   /**
@@ -270,8 +279,15 @@ export class Wall {
     return block;
   }
 
-  /** 성장 애니메이션 진행 — 매 프레임 호출(Spawner). */
+  /** 성장·재배치 애니메이션 진행 — 매 프레임 호출(Spawner. 전환 텀에는 tickTweens). */
   update(dt: number): void {
+    for (let i = this.slidingBlocks.length - 1; i >= 0; i--) {
+      const s = this.slidingBlocks[i]!;
+      s.t += dt / REGRID_SEC;
+      const k = Math.min(1, s.t);
+      s.block.group.position.x = s.fromX + (s.toX - s.fromX) * easeInOut(k);
+      if (k >= 1) this.slidingBlocks.splice(i, 1);
+    }
     for (let i = this.growing.length - 1; i >= 0; i--) {
       const g = this.growing[i]!;
       g.t += dt / GROW_SEC;
@@ -326,8 +342,13 @@ export class Wall {
     this._cols = cols;
     this.cellTotal = cols * rows;
     for (const block of this.blocks) {
-      block.group.position.x = cellToX(block.cell, cols);
-      block.group.position.y = cellToY(block.cell, cols);
+      block.group.position.y = cellToY(block.cell, cols); // 행 보존이라 사실상 불변
+      const toX = cellToX(block.cell, cols);
+      // 성장(growing) 중인 블록은 그 애니메이션이 새 cols 로 위치를 재계산하므로 제외.
+      if (this.growing.some((g) => g.block === block)) continue;
+      if (Math.abs(toX - block.group.position.x) > 1e-6) {
+        this.slidingBlocks.push({ block, fromX: block.group.position.x, toX, t: 0 });
+      }
     }
     if (this.before) this.before = remapSnapshot(this.before, oldCols, cols, rows);
     if (this.after) this.after = remapSnapshot(this.after, oldCols, cols, rows);
