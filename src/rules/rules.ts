@@ -7,7 +7,7 @@ import type { BlockBehavior, Rule, RuleBlock } from './RuleEngine';
  * 룰3/4 의 "특정 색"은 고정이 아니라 COLOR_POOL 에서 매 런 무작위로 뽑힌다
  * (ensureActiveRuleColors). 효과는 고정(정지/통과), 색만 런마다 달라진다.
  * 정적 룰(1~6)이 끝난 라운드 7+ 는 진행(progression) 동적 룰이 매 라운드 추가된다
- * (makeProgressionRule: 속도 +5% / 한 변 +1 / 색 룰 — 15라운드부터 반대 방향 포함).
+ * (makeProgressionRule: 속도 +5% / 한 변 +1 / 색 룰 — 12라운드부터 반대 방향 포함).
  */
 
 /**
@@ -162,13 +162,13 @@ const SPEED_MOD = 0;
 /** round % 10 이 이 값이면 한 변 +1 (15, 25, 35…). */
 const EXPAND_MOD = 5;
 /** 이 라운드부터 '반대 방향' 색 룰이 추가 풀에 포함. */
-const OPPOSITE_FROM_ROUND = 15;
+const OPPOSITE_FROM_ROUND = 12;
 
 /**
  * 라운드 → 동적(진행) 룰 생성 (id = 라운드 번호, 라운드당 정확히 1개 → 번호 연속).
  *  - 10, 20, 30… : 속도 +5% 마커
  *  - 15, 25, 35… : 한 변 +1 마커
- *  - 나머지      : 색 룰(정지/통과 랜덤, 15라운드부터 반대 방향도 풀에 포함)
+ *  - 나머지      : 색 룰(정지/통과 랜덤, 12라운드부터 반대 방향도 풀에 포함)
  * 모든 난이도 공통(어려움도 동일 스케줄 — 시작 라운드만 6).
  */
 export function makeProgressionRule(round: number): Rule {
@@ -187,7 +187,7 @@ export function makeProgressionRule(round: number): Rule {
  *  - rule4x4Expand(구 룰6): 런 중 4×1 → 4×4 전환. 2차원은 이제 모드(grid4x4)
  *    전용이라 배열에서 뺐다. 재활성화 시 Game.refreshGridSize 의 rows 계산에
  *    isActive 체크를 되살리면 된다(2D 코어·setgen·카메라는 전부 동작 보존).
- *  - "반대 방향" 색 룰(구 비활성)은 진행(progression) 풀로 부활 — 15라운드부터
+ *  - "반대 방향" 색 룰(구 비활성)은 진행(progression) 풀로 부활 — 12라운드부터
  *    makeProgressionRule 이 무작위로 추가할 수 있다(COLOR_RULE_DEFS.opposite).
  */
 const rule4x4Expand: Rule = {

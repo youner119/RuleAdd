@@ -30,7 +30,7 @@ export interface SetPlan {
  *  해당 종류의 색 룰(정적+진행 동적)이 하나라도 색을 배정받았을 때 켜진다. */
 export interface ActiveBehaviors {
   move: boolean; // 룰2 — 화살표 이동
-  opposite: boolean; // 반대 방향 — 진행 색 룰(15라운드+)로 활성화될 수 있다
+  opposite: boolean; // 반대 방향 — 진행 색 룰(12라운드+)로 활성화될 수 있다
   stop: boolean; // 정지(룰3 + 진행 동적)
   passable: boolean; // 통과(룰4 + 진행 동적)
   expand: boolean; // 룰5 — 확장(잡아먹기)
