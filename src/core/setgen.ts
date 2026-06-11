@@ -44,6 +44,11 @@ export interface SetGenOptions {
 
 /** 다방향 확장: 첫 방향 외 추가 방향을 이 확률로 더 먹음. */
 const MULTI_EXPAND_PROB = 0.4;
+/**
+ * 각 안전칸이 통과벽(룰4 통과색)이 될 독립 확률. 나머지 안전칸은 빈 구멍.
+ * 균등 랜덤(안전칸당 ≈50%)이면 통과색이 너무 자주 나와 쉬워져 25%로 낮춤.
+ */
+const PASSABLE_WALL_PROB = 0.25;
 const MAX_TRIES = 80;
 
 function shuffle<T>(arr: T[]): T[] {
@@ -97,13 +102,17 @@ export function generateSet(opts: SetGenOptions): SetPlan {
   const passableCount = Math.max(1, Math.min(opts.passableCount ?? 1, N - 1));
   const { passable } = opts.active;
 
-  // 안전칸 → 구멍(gap) vs 통과벽(num4) 분배 (통과 룰 활성 시에만 통과벽 가능).
+  // 안전칸 → 빈 구멍 vs 통과벽(num4, 룰4 색) 분배.
+  // 통과 룰 활성 시 각 안전칸을 독립 확률(PASSABLE_WALL_PROB)로 통과벽으로 — 통과색
+  // 빈도를 낮춰(균등 랜덤 ≈50% → 25%) 난이도 유지. 나머지는 빈 구멍.
   const order = shuffle([...Array(N).keys()]);
   const safe = order.slice(0, passableCount);
-  const maxPW = passable ? safe.length : 0;
-  const pwCount = maxPW > 0 ? Math.floor(Math.random() * (maxPW + 1)) : 0;
-  const passableWalls = new Set(safe.slice(0, pwCount));
-  const gaps = safe.slice(pwCount);
+  const passableWalls = new Set<number>();
+  const gaps: number[] = [];
+  for (const c of safe) {
+    if (passable && Math.random() < PASSABLE_WALL_PROB) passableWalls.add(c);
+    else gaps.push(c);
+  }
   const gapSet = new Set(gaps);
   const wallCells = [...Array(N).keys()].filter((c) => !gapSet.has(c));
 
