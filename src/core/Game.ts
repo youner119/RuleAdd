@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { checkCollision } from './CollisionSystem';
 import { InputController, isTextInput } from './InputController';
-import { COLS, cellIndex, colOf, createLaneGroup, rowOf } from './lane';
+import { TitleFlyby } from './TitleFlyby';
+import { COLS, SPAWN_Z, cellIndex, colOf, createLaneGroup, rowOf } from './lane';
 import { Player } from './Player';
-import { Spawner } from './Spawner';
+import { Spawner, WALL_SPACING } from './Spawner';
 import type { Wall } from './Wall';
 import { ScoreSystem } from './ScoreSystem';
 import { RuleEngine } from '../rules/RuleEngine';
@@ -73,6 +74,8 @@ export class Game {
   private round = 1;
   private setsPassed = 0;
   private transitionTimer = 0; // >0 이면 라운드 전환 텀(게임 정지)
+  /** 시작 공백의 "RULE ADD" 타이틀 플라이바이 — 지나가면 제거(null). */
+  private title: TitleFlyby | null = null;
 
   constructor(
     scene: THREE.Scene,
@@ -114,6 +117,7 @@ export class Game {
 
     this.applyRound(); // 시작 라운드(난이도 ruleFloor)의 룰 활성 + 색 배정 + 패널 + 그리드
     this.onGridChange(this.rows, this.cols); // 시작 카메라 프레이밍(그리드 크기 기준)
+    this.startTitle(); // 첫 세트 도착 전 공백 — "RULE ADD" 플라이바이
     this.scoreHud.update(this.score.value, this.round);
     this.scoreHud.setLives(this.lives, this.maxLives);
 
@@ -122,6 +126,9 @@ export class Game {
 
   update(dt: number): void {
     if (this.status !== 'playing') return;
+
+    // 시작 공백의 타이틀 플라이바이 — 레인과 같은 속도, 스페이스바 빨리감기도 동일 적용.
+    this.updateTitle(dt * (this.input.fastForward ? FAST_FORWARD_MULT : 1));
 
     // 라운드 전환 텀 — 게임 정지(Z 이동·스폰·충돌 없음), 중앙 배너 표시.
     // 단 확장 애니메이션(벽 regrid 슬라이드·플레이어 반 칸 이동)은 이 동안 진행.
@@ -151,6 +158,28 @@ export class Game {
       hitWall.lifeTaken = true; // 이 세트는 1회만 차감
       this.loseLife(hitWall);
     }
+  }
+
+  /**
+   * 시작 공백의 "RULE ADD" 타이틀 플라이바이 띄우기 — 첫 벽보다 한 간격(WALL_SPACING)
+   * 앞에서, 벽과 같은 속도로 레인 위쪽을 흘러온다. 기존 것이 있으면 교체(재시작).
+   */
+  private startTitle(): void {
+    this.removeTitle();
+    const y = this.rows > 1 ? 8.0 : 4.2; // 그리드 위쪽 높이(2차원은 더 높이)
+    this.title = new TitleFlyby(y, this.spawner.wallSpeed, SPAWN_Z + WALL_SPACING);
+    this.scene.add(this.title.object);
+  }
+
+  private updateTitle(dt: number): void {
+    if (this.title && this.title.update(dt)) this.removeTitle();
+  }
+
+  private removeTitle(): void {
+    if (!this.title) return;
+    this.scene.remove(this.title.object);
+    this.title.dispose();
+    this.title = null;
   }
 
   /** 충돌 1회 → 목숨 -1, 0 이면 게임오버(죽인 세트 전달). */
@@ -351,6 +380,7 @@ export class Game {
     this.applyRound();
     this.spawner.reset();
     this.player.reset();
+    this.startTitle(); // 재시작도 첫 세트 전 공백 — 타이틀 다시 흘려보냄
     this.scoreHud.update(this.score.value, this.round);
     this.scoreHud.setLives(this.lives, this.maxLives);
     this.status = 'playing';
@@ -361,6 +391,7 @@ export class Game {
     window.removeEventListener('keydown', this.onKeyDown);
     this.input.dispose();
     this.spawner.reset(); // 벽 제거
+    this.removeTitle();
     this.scene.remove(this.laneGroup, this.player.object);
     this.panel.dispose();
     this.banner.dispose();

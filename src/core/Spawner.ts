@@ -13,7 +13,7 @@ import type { RuleEngine } from '../rules/RuleEngine';
  * 통과 카운트(세트 통과)는 T12에서 배선.
  */
 
-const WALL_SPACING = 28; // 연속 벽(세트) 간 Z 거리 → 스폰 주기 = SPACING/SPEED
+export const WALL_SPACING = 28; // 연속 벽(세트) 간 Z 거리 → 스폰 주기 = SPACING/SPEED
 const DEFAULT_INTERVAL_SEC = 4; // 세트 도착 간격 기본값(난이도 미지정 시 = 쉬움 속도)
 const DESPAWN_Z = LANE_NEAR_Z + 2; // 플레이어를 충분히 지나치면 제거
 const SHIFT_TRIGGER_Z = PLAYER_Z - 4; // 플레이어 4유닛 앞 → 코앞에서 이동
@@ -46,6 +46,11 @@ export class Spawner {
   /** 진행 속도 배율 갱신(라운드 10·20·30… 누적 ×1.05). 비행 중 세트에도 즉시 적용. */
   setSpeedMult(mult: number): void {
     this.speedMult = mult;
+  }
+
+  /** 현재 벽 이동 속도(월드 단위/초) — 타이틀 플라이바이 등 연출 속도 기준. */
+  get wallSpeed(): number {
+    return this.baseSpeed * this.speedMult;
   }
 
   /** 세로 줄 수 갱신(2차원 모드 확장 4→5). 다음 스폰부터 적용. */
@@ -211,7 +216,7 @@ export class Spawner {
       active: {
         move: this.engine.isActive(2),
         // 색 행동은 종류(behaviorKind) 기준 — 진행(동적) 색 룰도 자동 반영.
-        // 반대 방향은 15라운드부터 진행 룰로 추가될 수 있다.
+        // 반대 방향은 12라운드부터 진행 룰로 추가될 수 있다.
         opposite: this.hasColoredKind('opposite'),
         stop: this.hasColoredKind('stop'),
         passable: this.hasColoredKind('pass'),
