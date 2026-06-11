@@ -242,7 +242,7 @@ export class Spawner {
       active: {
         move: this.engine.isActive(2),
         // 색 행동은 종류(behaviorKind) 기준 — 진행(동적) 색 룰도 자동 반영.
-        // 반대 방향은 12라운드부터 진행 룰로 추가될 수 있다.
+        // 반대 방향은 진행 스케줄(난이도별 oppositeFrom)에 따라 추가될 수 있다.
         opposite: this.hasColoredKind('opposite'),
         stop: this.hasColoredKind('stop'),
         passable: this.hasColoredKind('pass'),

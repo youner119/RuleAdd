@@ -10,6 +10,7 @@ import { ScoreSystem } from './ScoreSystem';
 import { RuleEngine } from '../rules/RuleEngine';
 import { RULES, ensureActiveRuleColors, makeProgressionRule, resetRuleColors } from '../rules/rules';
 import { type Difficulty, difficultyConfig } from './difficulty';
+import type { ProgressionSchedule } from '../rules/rules';
 import { RulePanel } from '../hud/RulePanel';
 import { RoundBanner } from '../hud/RoundBanner';
 import { ScoreHud } from '../hud/ScoreHud';
@@ -74,6 +75,10 @@ export class Game {
   private round = 1;
   private setsPassed = 0;
   private transitionTimer = 0; // >0 이면 라운드 전환 텀(게임 정지)
+  /** 라운드 7+ 동적 룰 스케줄(난이도별 — 쉬움은 느슨함). */
+  private readonly progression: ProgressionSchedule;
+  /** 다음에 진행 룰을 판정할 라운드 — 빈 라운드(추가 없음)도 한 번만 처리(멱등). */
+  private nextProgressionRound = RULES.length + 1;
   /** 시작 공백의 "RULE ADD" 타이틀 플라이바이 — 지나가면 제거(null). */
   private title: TitleFlyby | null = null;
 
@@ -88,6 +93,7 @@ export class Game {
     this.onGridChange = onGridChange;
     this.difficulty = difficulty;
     const cfg = difficultyConfig(difficulty, RULES.length);
+    this.progression = cfg.progression;
     this.ruleFloor = cfg.ruleFloor;
     // "그 라운드까지 간 느낌" — 시작 라운드 = ruleFloor. 어려움은 모든 룰(확장 포함)
     // 라운드부터 시작하고 표시·점수(base×round²)도 그 기준. 나머지 모드는 1 → 기존대로.
@@ -232,14 +238,17 @@ export class Game {
   }
 
   /**
-   * 정적 룰(1~6)이 끝난 라운드의 동적(진행) 룰을 라운드당 1개 생성(id = 라운드).
-   * 내용은 makeProgressionRule(속도 +5% / 한 변 +1 / 색 룰) — 모든 난이도 공통.
-   * 이미 만든 라운드는 건너뛴다(멱등). 재시작 시 truncate 로 비우고 새로 굴린다.
+   * 정적 룰(1~6)이 끝난 라운드의 동적(진행) 룰 생성 — 난이도 스케줄(progression)
+   * 기반. 스케줄에 없는 라운드는 추가 없음(쉬움의 빈 라운드). id 는 룰 순번
+   * (ruleCount+1)이라 빈 라운드가 있어도 패널/배너 번호가 연속이다.
+   * 처리한 라운드는 nextProgressionRound 로 멱등 보장. 재시작 시 truncate 후 재롤.
    */
   private ensureDynamicRules(upTo: number): void {
-    for (let r = this.engine.ruleCount + 1; r <= upTo; r++) {
-      this.engine.addRule(makeProgressionRule(r));
+    for (let r = this.nextProgressionRound; r <= upTo; r++) {
+      const rule = makeProgressionRule(r, this.engine.ruleCount + 1, this.progression);
+      if (rule) this.engine.addRule(rule);
     }
+    this.nextProgressionRound = Math.max(this.nextProgressionRound, upTo + 1);
   }
 
   /** 활성 'speed' 마커 수 → 벽 속도 배율(누적 ×1.05). 'warp' 태그도 함께 반영. */
@@ -371,6 +380,7 @@ export class Game {
   reset(): void {
     resetRuleColors(); // 색 초기화 → 라운드 진행으로 다시 배정
     this.engine.truncate(RULES.length); // 동적(진행) 룰 제거 — 다음 런에서 새로 굴림
+    this.nextProgressionRound = RULES.length + 1;
     this.score.reset();
     this.lives = this.maxLives;
     this.round = this.ruleFloor; // 시작 라운드(어려움=모든 룰 라운드)로 복귀

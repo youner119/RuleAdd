@@ -7,8 +7,9 @@ import type { BlockBehavior, Rule, RuleBlock } from './RuleEngine';
  *
  * 룰3/4 의 "특정 색"은 고정이 아니라 COLOR_POOL 에서 매 런 무작위로 뽑힌다
  * (ensureActiveRuleColors). 효과는 고정(정지/통과), 색만 런마다 달라진다.
- * 정적 룰(1~6)이 끝난 라운드 7+ 는 진행(progression) 동적 룰이 매 라운드 추가된다
- * (makeProgressionRule: 속도 +5% / 한 변 +1 / 색 룰 — 12라운드부터 반대 방향 포함).
+ * 정적 룰(1~6)이 끝난 라운드 7+ 는 진행(progression) 동적 룰이 추가된다
+ * (makeProgressionRule: 속도 +5% / 한 변 +1 / 색 룰). 스케줄은 난이도별 —
+ * 기본(PROGRESSION_DEFAULT)은 매 라운드, 쉬움(PROGRESSION_EASY)은 느슨하게.
  */
 
 /**
@@ -188,29 +189,52 @@ const ruleExpand = makeExpandRule(6);
 
 export const RULES: readonly Rule[] = [rule1, rule2, rule3, rule4, rule5, ruleExpand];
 
-// --- 진행(progression) — 정적 룰(1~6)이 끝난 라운드 7+ 는 매 라운드 동적 룰 추가 ---
+// --- 진행(progression) — 정적 룰(1~6)이 끝난 라운드 7+ 의 동적 룰 스케줄 ---
 
-/** round % 10 이 이 값이면 속도 +5% (10, 20, 30…). */
-const SPEED_MOD = 0;
-/** round % 10 이 이 값이면 한 변 +1 (15, 25, 35…). */
-const EXPAND_MOD = 5;
-/** 이 라운드부터 '반대 방향' 색 룰이 추가 풀에 포함. */
-const OPPOSITE_FROM_ROUND = 12;
+/** 난이도별 진행 스케줄. 우선순위: 속도 > 확장 > 색. 어느 것도 아니면 그 라운드는 추가 없음. */
+export interface ProgressionSchedule {
+  /** round % every === at 이면 속도 +5% 마커. */
+  speed: { every: number; at: number };
+  /** round % every === at 이면 한 변 +1 마커. */
+  expand: { every: number; at: number };
+  /** round % colorEvery === 0 이면 색 룰. 1 = (속도/확장 외) 매 라운드. */
+  colorEvery: number;
+  /** 이 라운드부터 '반대 방향' 색 룰이 추가 풀에 포함. */
+  oppositeFrom: number;
+}
+
+/** 기본 스케줄(보통/어려움/블라인드/2차원) — 속도 10·20·30… / 확장 15·25·35… / 나머지 색(반대 12+). */
+export const PROGRESSION_DEFAULT: ProgressionSchedule = {
+  speed: { every: 10, at: 0 },
+  expand: { every: 10, at: 5 },
+  colorEvery: 1,
+  oppositeFrom: 12,
+};
+
+/** 쉬움 스케줄 — 색 3라운드마다(9·12·15…) / 속도 10·30·50… / 확장 20·40·60… / 반대 30+. 빈 라운드 존재. */
+export const PROGRESSION_EASY: ProgressionSchedule = {
+  speed: { every: 20, at: 10 },
+  expand: { every: 20, at: 0 },
+  colorEvery: 3,
+  oppositeFrom: 30,
+};
 
 /**
- * 라운드 → 동적(진행) 룰 생성 (id = 라운드 번호, 라운드당 정확히 1개 → 번호 연속).
- *  - 10, 20, 30… : 속도 +5% 마커
- *  - 15, 25, 35… : 한 변 +1 마커
- *  - 나머지      : 색 룰(정지/통과 랜덤, 12라운드부터 반대 방향도 풀에 포함)
- * 모든 난이도 공통(어려움도 동일 스케줄 — 시작 라운드만 6).
+ * 라운드 → 동적(진행) 룰 생성. 스케줄에 해당 없으면 null(그 라운드는 추가 없음 —
+ * 쉬움처럼 느슨한 스케줄용). id 는 룰 순번(engine.ruleCount+1)을 받는다 —
+ * 빈 라운드가 있어도 패널/배너의 룰 번호가 연속으로 이어진다.
  */
-export function makeProgressionRule(round: number): Rule {
-  const mod = round % 10;
-  if (mod === SPEED_MOD) return makeSpeedRule(round);
-  if (mod === EXPAND_MOD) return makeExpandRule(round);
+export function makeProgressionRule(
+  round: number,
+  id: number,
+  schedule: ProgressionSchedule,
+): Rule | null {
+  if (round % schedule.speed.every === schedule.speed.at) return makeSpeedRule(id);
+  if (round % schedule.expand.every === schedule.expand.at) return makeExpandRule(id);
+  if (round % schedule.colorEvery !== 0) return null;
   const kinds: ColorRuleKind[] = ['stop', 'pass'];
-  if (round >= OPPOSITE_FROM_ROUND) kinds.push('opposite');
-  return makeColorRule(round, kinds[Math.floor(Math.random() * kinds.length)] as ColorRuleKind);
+  if (round >= schedule.oppositeFrom) kinds.push('opposite');
+  return makeColorRule(id, kinds[Math.floor(Math.random() * kinds.length)] as ColorRuleKind);
 }
 
 /**
