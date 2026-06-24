@@ -1,8 +1,8 @@
 # RuleAdd
 
-WebGL 3D 회피 퍼즐 게임. 흰 배경에서 흰 구(플레이어)를 조종해 다가오는 벽의 빈 칸(gap)으로 이동하는 Hole-in-the-wall 메커니즘 (Chrome 공룡 미니게임의 3D 발전형). 라운드가 진행될수록 룰이 1→5 순서로 누적되고, 나중 룰이 충돌 시 우선한다. 무한 생존 하이스코어. **Computer Graphics 개인 과제** — three.js 기반.
+WebGL 3D 회피 퍼즐 게임. 흰 배경에서 흰 구(플레이어)를 조종해 다가오는 벽의 빈 칸(gap)으로 이동하는 Hole-in-the-wall 메커니즘 (Chrome 공룡 미니게임의 3D 발전형). 라운드가 진행될수록 룰이 1→6 순서로 누적되고(라운드 7+ 는 동적 진행 룰 — 속도 +5%/그리드 확장/색 룰 계속 추가), 나중 룰이 충돌 시 우선한다. 무한 생존 하이스코어. **Computer Graphics 개인 과제** — three.js 기반.
 
-설계 정본: `.omc/specs/deep-interview-ruleadd.md` (deep-interview 9 rounds, ambiguity 12.2%, PASSED).
+설계 정본: `.omc/specs/deep-interview-ruleadd.md` (deep-interview 9 rounds, ambiguity 12.2%, PASSED — 단 본문 일부는 2026-06-24 구현 동기화 개정됨, `## Implementation Drift` 참조).
 
 ---
 
@@ -37,39 +37,41 @@ WebGL 3D 회피 퍼즐 게임. 흰 배경에서 흰 구(플레이어)를 조종�
 
 Commit message footer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
-> 참고: git 은 아직 미초기화 (greenfield). T1 스캐폴딩 시점에 `git init` → `main`. 그 전까지 L2 는 첫 커밋 구성 시점부터 적용.
+> 참고: git 초기화 완료 — `main` 브랜치 (origin: `github.com/youner119/RuleAdd`). L2 는 모든 커밋에 적용된다.
 
 ---
 
 ## Read these first when starting a session
 
 1. **`.omc/state/current-task.md`** — 세션 간 task 연속성의 single source of truth. 현재 phase / active task / next action + task catalog. **형식 = `.omc/state/current-task-template.md` 정본 — 갱신 시 template 의 invariant (group 별 ### 헤더 / T\<n\> flat numbering / spec AC 와 1:1 align / interview meta 는 task list 외 Last updated 한 줄로) 따름. 안티-예시 (sub-numbering / interview meta 의 task list 박힘 / group 없는 flat list / AC reference 없음) 박지 말 것.**
-2. **`.omc/specs/deep-interview-ruleadd.md`** — Deep Interview crystallized spec. Goal / Constraints / Non-Goals / Acceptance Criteria (12개) / Topology (4 컴포넌트) / Ontology / Open Defaults / 전체 transcript. **모든 설계 결정의 정본.**
+2. **`.omc/specs/deep-interview-ruleadd.md`** — Deep Interview crystallized spec. Goal / Constraints / Non-Goals / Acceptance Criteria / Topology (4 컴포넌트) / Ontology / Open Defaults / 전체 transcript + **`## Implementation Drift`(2026-06-24 구현 동기화 개정점)**. **모든 설계 결정의 정본** — 단 본문 일부는 구현에 맞게 개정됨(transcript 는 역사 원본).
 3. **`.omc/state/current-task-template.md`** — current-task.md 형식 template (직접 갱신 ✗).
 
 ---
 
-## Architecture (spec 기반)
+## Architecture (구현 반영)
 
-- **RuleAdd = three.js 기반 단일 WebGL 게임.** 빌드/번들러 = Vite, 언어 = TypeScript 권장.
-- **v1 범위:** 4×1 그리드 (한 줄 4칸) + 룰 1~5. → **Non-Goal (v2):** 4×4 / 4×4×4 확장, 룰 6~10, 사운드, 온라인 랭킹. (spec `## Non-Goals` 정본)
-- **핵심 메커니즘:** Hole-in-the-wall — 벽이 일부 칸을 막고 ≥1칸 gap 을 남김. 구가 빈 칸으로 이동해 통과. 막힌 칸에서 겹치면 게임오버(즉사).
-- **이동 모델:** 구·벽 모두 연속(continuous) 접근 우선 구현, 조작감 불만 시 구만 칸 스냅으로 전환 (이동 로직 분리해 둘 것).
-- **난이도 상승원:** 벽 속도 일정(가속 없음). 난이도는 **오직 룰 누적**에서 나온다 — 공간지각 + 논리 사고가 난이도원.
-- **룰 우선순위:** 1→5 순서 누적 + 후순위 우선(later-wins). 룰 3·4·5 의 색은 서로 다른 색 배정으로 애초에 비충돌. 우선순위는 색 겹침이 불가피할 때(v2 룰8 등)의 폴백.
-- **점수:** 세트 통과 시 `기본점(100) × 라운드²`. 라운드당 5세트 고정 → 라운드 +1 + 룰 활성화.
+- **RuleAdd = three.js 기반 단일 WebGL 게임.** 빌드/번들러 = Vite, 언어 = TypeScript. Firebase(글로벌 랭킹) 의존.
+- **구현 범위:** v1(4×1 + 룰1~5)을 넘어 진행 중 — **룰6(그리드 한 변 +1 확장)**, **2차원 모드(4×4→5×5)**, **라운드 7+ 무한 동적 진행 룰**(속도 +5%/확장/색 룰), **i18n(한/EN)**, **점수 기록**(로컬 top5 + Firebase 글로벌 top10), **타이틀 플라이바이** 까지 구현됨. ⚠️ 이들은 원 spec `## Non-Goals`(v2) 영역 — spec 은 `## Implementation Drift` 로 동기화됨. **여전히 미구현(v2):** 룰7~10, 4×4×4 3D, 사운드/음악, warp 룰(훅만 준비·기본 비활성).
+- **핵심 메커니즘:** Hole-in-the-wall — 벽이 일부 칸을 막고 ≥1칸 gap 을 남김. 구가 빈 칸으로 이동해 통과. 막힌 칸에서 겹치면 충돌(목숨 −1, 0 이면 게임오버).
+- **이동 모델:** 구·벽 모두 연속(continuous) 접근. 슬라이드 스냅 보조(이동 로직 분리됨).
+- **난이도 상승원:** 한 런 안에서 벽 속도는 일정(AC5). 단 라운드 7+ 진행 룰 `speed`(라운드 10·20·30…마다 ×1.05 누적)로 장기적으로 가속된다. 1차 난이도원은 여전히 **룰 누적**(공간지각 + 논리).
+- **룰 우선순위:** 추가 순서대로 fold + 후순위 우선(later-wins, RuleEngine). 룰 3·4·5 의 색은 서로 다른 색 배정으로 애초에 비충돌. 우선순위는 색 겹침이 불가피할 때의 폴백.
+- **점수:** 세트 통과 시 `기본점(100) × 라운드²`. **라운드당 10세트**(`SETS_PER_ROUND=10`) → 라운드 +1 + 룰 활성화.
 
 ```
-main.ts (entry)
-  └─ GameLoop (requestAnimationFrame)
-       ├─ Spawner          # 벽 세트 스폰 + Z축 일정 속도 접근
-       ├─ RuleEngine       # data-driven 룰 정의 + 후순위 우선 정렬 (v2 확장 대비)
-       ├─ CollisionSystem  # 막힌 칸 충돌 판정 → 게임오버
+main.ts (entry + 카메라/루프 배선)
+  └─ GameLoop (requestAnimationFrame) → Game (상태 머신)
+       ├─ Spawner          # 벽 세트 스폰 + Z축 접근 (setgen 으로 세트 생성, 속도 배율)
+       ├─ RuleEngine       # data-driven 룰 fold + 후순위 우선. rules.ts(룰1~6 + 진행 룰 + 30색 풀)
+       ├─ CollisionSystem  # 막힌 칸 충돌 판정 → 목숨/게임오버
        ├─ ScoreSystem      # base × round²
-       └─ HUD              # 우측 룰 패널(최신 위) + 점수 + 게임오버/재시작
+       ├─ leaderboard/     # localBoard(top5) + globalBoard(Firebase top10)
+       ├─ i18n             # 한/EN 메시지
+       └─ hud/             # 룰 패널 + 점수 + 게임오버 리플레이 + 시작/점수판/이름 모달
 ```
 
-> 구현 상세 구조는 미착수 (greenfield). 위는 spec `## Technical Context` 의 제안 — 실제 모듈 경계는 구현 진입 시 사용자 승인(L1) 후 확정.
+> 위는 실제 모듈 구조(2026-06 기준). 모듈 경계 변경은 L1 승인 후.
 
 ## Operating rules
 
@@ -80,36 +82,43 @@ main.ts (entry)
 
 > 협업 절차 규칙 (pre-action approval / commit 단위) 은 본 파일 상단의 **🔒 LOCKED RULES** 가 정본. 중복 정의 금지.
 
-## Project structure (계획 — 미착수)
+## Project structure (구현)
 
 ```
 RuleAdd/
-├── index.html              # (계획) Vite entry
-├── package.json            # (계획) three.js + vite + typescript
-├── src/                    # (계획) 게임 소스
-│   ├── main.ts             #   entry + GameLoop
-│   ├── core/               #   Player / Spawner / Wall / CollisionSystem
-│   ├── rules/              #   RuleEngine + 룰1~5 정의 (data-driven)
-│   ├── progression/        #   Set/Round 구조 + ScoreSystem + 난이도 모드
-│   └── hud/                #   우측 룰 패널 + 점수 + 게임오버 UI
+├── index.html              # Vite entry
+├── package.json            # three.js + firebase + vite + typescript
+├── netlify.toml            # 배포 설정 (Netlify 자동 배포)
+├── firestore.rules         # Firebase 글로벌 랭킹 보안 규칙
+├── .env / .env.example     # Firebase 설정 (gitignore)
+├── src/
+│   ├── main.ts             #   entry + 카메라/루프 배선
+│   ├── i18n.ts             #   한/EN 메시지
+│   ├── core/               #   Game / GameLoop / Player / Spawner / Wall / CollisionSystem
+│   │                       #   / ScoreSystem / InputController / lane / setgen / pattern
+│   │                       #   / difficulty / TitleFlyby
+│   ├── rules/              #   RuleEngine + rules(룰1~6 + 진행 룰 + 30색 풀)
+│   ├── hud/                #   RulePanel / ScoreHud / GameOverScreen / StartScreen
+│   │                       #   / ScoreboardScreen / ScoreboardPanel / NameEntryModal
+│   │                       #   / RoundBanner / ControlsHud
+│   └── leaderboard/        #   firebase / globalBoard / localBoard / types
+├── scratch/                # 실험·진단 스크립트 (빌드 제외)
 ├── .omc/
 │   ├── state/current-task.md           # 앞으로 할 일 (active / 다음 action)
 │   ├── state/current-task-template.md  # current-task.md 형식 template (정본)
-│   └── specs/deep-interview-ruleadd.md # Deep interview crystallized spec (설계 정본)
+│   └── specs/deep-interview-ruleadd.md # Deep interview spec (설계 정본 + Implementation Drift)
 └── CLAUDE.md               # 이 파일
 ```
 
-> `src/` 하위 모듈 경계는 제안일 뿐 — T1~T2 스캐폴딩 시점에 사용자 승인(L1) 후 확정.
+## Progress & testing
 
-## Progress & testing (계획)
-
-진행 상황은 `.omc/state/current-task.md` 참조 — **앞으로 할 일**(active / 다음 action)만. 완료 아카이브는 `.omc/state/prev-task.md` (필요 시 신설).
+진행 상황은 `.omc/state/current-task.md` 참조 — **앞으로 할 일**(active / 다음 action)만. 완료 아카이브는 `.omc/state/prev-task.md`.
 
 ```bash
-# (T1 스캐폴딩 후 확정될 명령 — 현재는 계획)
 npm run dev                 # Vite dev server (브라우저에서 플레이 확인)
-npm run build               # 프로덕션 빌드
-npx tsc --noEmit            # 타입체크
+npm run build               # tsc --noEmit + vite build (프로덕션)
+npm run typecheck           # tsc --noEmit (타입체크)
+npm run preview             # 빌드 결과 미리보기
 ```
 
 **코드 변경 후 workflow:** 타입체크 → dev server 에서 실제 플레이 확인(브라우저). 게임 로직은 단위 테스트보다 **실 플레이 1-cycle 검증** (spec acceptance criteria AC1~AC12) 이 1차 게이트.
